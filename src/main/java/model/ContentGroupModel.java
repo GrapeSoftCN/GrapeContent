@@ -15,7 +15,6 @@ import esayhelper.DBHelper;
 import esayhelper.JSONHelper;
 import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
-import interrupt.interrupt;
 
 public class ContentGroupModel {
 	private static formHelper _form;
@@ -67,9 +66,6 @@ public class ContentGroupModel {
 	}
 
 	public int UpdateGroup(String ogid, JSONObject groupinfo) {
-		if (!_form.checkRuleEx(groupinfo)) {
-			return 2;
-		}
 		if (find_contentnamebyName(groupinfo.get("name").toString()) != null) {
 			if (find_contentnamebyType(groupinfo.get("type").toString()) != null) {
 				return 3;
@@ -98,7 +94,7 @@ public class ContentGroupModel {
 		for (Object object2 : set) {
 			dbcontent.eq(object2.toString(), object.get(object2.toString()));
 		}
-		return dbcontent.select();
+		return dbcontent.limit(20).select();
 	}
 
 	public JSONObject page(int idx, int pageSize) {
@@ -169,15 +165,6 @@ public class ContentGroupModel {
 	}
 
 	public int delete(String[] arr) {
-		// StringBuffer stringBuffer = new StringBuffer();
-		// for (int i = 0; i < arr.length; i++) {
-		// int code = DeleteGroup(arr[i]);
-		// if (code != 0) {
-		// stringBuffer.append((i + 1) + ",");
-		// }
-		// }
-		// return stringBuffer.length() == 0 ? 0 : 3;
-
 		dbcontent = (DBHelper) dbcontent.or();
 		for (int i = 0; i < arr.length; i++) {
 			dbcontent.eq("_id", new ObjectId(arr[i]));
@@ -203,9 +190,6 @@ public class ContentGroupModel {
 		return dbcontent.eq("fatherid", ogid).select();
 	}
 
-//	public JSONArray getByType(int type) {
-//		return dbcontent.eq("type", type).select();
-//	}
 	/**
 	 * 生成32位随机编码
 	 * 

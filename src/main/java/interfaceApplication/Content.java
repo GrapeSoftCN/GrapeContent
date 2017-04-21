@@ -150,8 +150,8 @@ public class Content {
 	public String ShowByGroupId(String ogid) {
 		_obj.put("records", content.findByGroupID(ogid));
 		return StringEscapeUtils.unescapeJava(jGrapeFW_Message.netMSG(0, _obj.toString()));
-//		return StringEscapeUtils.unescapeJava(content.resultMessage(0, _obj.toJSONString()));
 	}
+	
 
 	/**
 	 * 修改排序值

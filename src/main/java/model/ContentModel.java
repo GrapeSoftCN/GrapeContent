@@ -12,7 +12,6 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import esayhelper.DBHelper;
-import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
@@ -23,42 +22,39 @@ import jodd.util.ArraysUtil;
 public class ContentModel {
 	private static DBHelper dbcontent;
 	private static formHelper _form;
-//	private static session session;
-//	private static JSONObject _obj_session = new JSONObject();
+	// private static session session;
+	// private static JSONObject _obj_session = new JSONObject();
 	static {
-//		session = new session();
+		// session = new session();
 		dbcontent = new DBHelper("mongodb", "content");
-//		_obj_session.put("content", session.insertSession("content", dbcontent.select()
-//				.toString()));
+		// _obj_session.put("content", session.insertSession("content",
+		// dbcontent.select()
+		// .toString()));
 		_form = dbcontent.getChecker();
 	}
 
 	public ContentModel() {
-		_form.putRule("mainName"/*,content,wbid"*/, formdef.notNull);
-		//获取用户的权限值
-		
+		_form.putRule("mainName"/* ,content,wbid" */, formdef.notNull);
+		// 获取用户的权限值
+
 	}
 
 	/**
 	 * 发布文章
 	 * 
 	 * @param content
-	 * @return 
-	 * && 1：判断字段是否合法 
-	 * && 2：必填信息没有填 
-	 * && 3：同栏目下已存在该文章 
-	 * && 4：同站点下已存在该文章
-	 * && 5：是否含有敏感词 接入第三方插件
+	 * @return && 1：判断字段是否合法 && 2：必填信息没有填 && 3：同栏目下已存在该文章 && 4：同站点下已存在该文章 &&
+	 *         5：是否含有敏感词 接入第三方插件
 	 */
 	// 不允许重复添加，但存在同名不同内容的文章
 	public int insert(JSONObject content) {
 		if (!_form.checkRuleEx(content)) {
 			return 2;
 		}
-//		int ckcode = _form.check_forminfo(content);
-//		if (ckcode == 1) {
-//			return 2;
-//		}
+		// int ckcode = _form.check_forminfo(content);
+		// if (ckcode == 1) {
+		// return 2;
+		// }
 		if (content.get("mainName").toString().equals("")) {
 			return 1;
 		}
@@ -68,29 +64,27 @@ public class ContentModel {
 		return dbcontent.data(content).insertOnce() != null ? 0 : 99;
 	}
 
-	public int UpdateArticle(String oid,JSONObject content) {
-//		// 非空字段判断
-//		if (!_form.checkRuleEx(content)) {
-//			return 2;
-//		}
+	public int UpdateArticle(String oid, JSONObject content) {
 		if (content.get("mainName").toString().equals("")) {
 			return 1;
+		}
+		if (content.containsKey("_id")) {
+			content.remove("_id");
 		}
 		return dbcontent.eq("_id", new ObjectId(oid)).data(content).update() != null ? 0 : 99;
 	}
 
 	public int DeleteArticle(String oid) {
-		return dbcontent.eq("_id", new ObjectId(oid)).delete()!=null?0:99;
-//		return dbcontent.delete(new ObjectId(oid)) == true ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(oid)).delete() != null ? 0 : 99;
 	}
 
 	/**
 	 * 删除指定栏目下的指定文章
 	 * 
 	 * @param oid
-	 *          文章id
+	 *            文章id
 	 * @param ogid
-	 *          栏目id
+	 *            栏目id
 	 */
 	public int deleteByOgID(String oid, String ogid) {
 		// 查询oid对应的文章
@@ -98,9 +92,10 @@ public class ContentModel {
 		// 获取栏目id
 		String values = _obj.get("ogid").toString();
 		values = values.replace(ogid, "");
-//		String[] value = _obj.get("ogid").toString().split(",");
-//		String fieldValue = StringHelper.join(ArraysUtil.remove(value, ArraysUtil.indexOf(
-//				value, ogid), 1));
+		// String[] value = _obj.get("ogid").toString().split(",");
+		// String fieldValue = StringHelper.join(ArraysUtil.remove(value,
+		// ArraysUtil.indexOf(
+		// value, ogid), 1));
 		JSONObject obj = new JSONObject();
 		obj.put("ogid", values);
 		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
@@ -110,9 +105,9 @@ public class ContentModel {
 	 * 删除指定站点下的指定文章
 	 * 
 	 * @param oid
-	 *          文章id
+	 *            文章id
 	 * @param wbid
-	 *          站点id
+	 *            站点id
 	 * @return
 	 */
 	public int deleteByWbID(String oid, String wbid) {
@@ -121,9 +116,10 @@ public class ContentModel {
 		// 获取站点id
 		String values = _obj.get("wbid").toString();
 		values = values.replace(wbid, "");
-//		String[] value = _obj.get("wbid").toString().split(",");
-//		String fieldValue = StringHelper.join(ArraysUtil.remove(value, ArraysUtil.indexOf(
-//				value, wbid), 1));
+		// String[] value = _obj.get("wbid").toString().split(",");
+		// String fieldValue = StringHelper.join(ArraysUtil.remove(value,
+		// ArraysUtil.indexOf(
+		// value, wbid), 1));
 		JSONObject obj = new JSONObject();
 		obj.put("wbid", values);
 		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
@@ -150,15 +146,16 @@ public class ContentModel {
 		obj.put("ogid", values);
 		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
 	}
-	public int setGroup(JSONArray array,String ogid) {
+
+	public int setGroup(JSONArray array, String ogid) {
 		int code = 99;
 		// 获取栏目id
 		for (int i = 0; i < array.size(); i++) {
 			JSONObject _obj = (JSONObject) array.get(i);
 			String values = _obj.get("ogid").toString();
 			values = values.replace(ogid, "0");
-//			ArraysUtil.remove(value, ArraysUtil.indexOf(value, ogid), 1);
-//			String values = StringHelper.join(ArraysUtil.append(value, "0"));
+			// ArraysUtil.remove(value, ArraysUtil.indexOf(value, ogid), 1);
+			// String values = StringHelper.join(ArraysUtil.append(value, "0"));
 			JSONObject obj = new JSONObject();
 			JSONObject obj1 = new JSONObject();
 			obj.put("ogid", values);
@@ -167,23 +164,24 @@ public class ContentModel {
 		}
 		return code;
 	}
+
 	public JSONObject page(int idx, int pageSize) {
 		JSONArray array = dbcontent.page(idx, pageSize);
-		JSONObject object = new JSONObject(){
+		JSONObject object = new JSONObject() {
 			private static final long serialVersionUID = 1L;
 
 			{
-				put("totalSize", (int)Math.ceil((double)dbcontent.count()/pageSize));
+				put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
 				put("currentPage", idx);
 				put("pageSize", pageSize);
 				put("data", array);
-				
+
 			}
 		};
 		return object;
 	}
 
-	public JSONObject page(int idx, int pageSize,JSONObject content) {
+	public JSONObject page(int idx, int pageSize, JSONObject content) {
 		for (Object object2 : content.keySet()) {
 			if (content.containsKey("_id")) {
 				dbcontent.eq("_id", new ObjectId(content.get("_id").toString()));
@@ -191,46 +189,31 @@ public class ContentModel {
 			dbcontent.eq(object2.toString(), content.get(object2.toString()));
 		}
 		JSONArray array = dbcontent.page(idx, pageSize);
-		JSONObject object = new JSONObject(){
+		JSONObject object = new JSONObject() {
 			private static final long serialVersionUID = 1L;
 
 			{
-				put("totalSize", (int)Math.ceil((double)dbcontent.count()/pageSize));
+				put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
 				put("currentPage", idx);
 				put("pageSize", pageSize);
 				put("data", array);
-				
+
 			}
 		};
 		return object;
 	}
 
-//	public JSONArray select() {
-////		String content = session.get(_obj_session.get("content").toString());
-////		JSONArray array = (JSONArray) JSONValue.parse(content);
-//		JSONArray array = dbcontent.select();
-//		for (int i = 0; i < array.size(); i++) {
-//			JSONObject _obj = (JSONObject) array.get(i);
-//			// String string = _obj.get("image").toString().split(",")[0];
-//			// _obj.remove("image");
-//			// _obj.put("display", string);
-//			String state = showstate(_obj.get("state").toString());
-//			_obj.put("state", state);
-//			array.set(i, _obj);
-//		}
-////		session.deleteSession("content");
-//		return array;
-//	}
-
 	public JSONArray select(String oid) {
-		JSONArray array = dbcontent.eq("_id", new ObjectId(oid)).select();
+		JSONArray array = dbcontent.eq("_id", new ObjectId(oid)).limit(30).select();
 		return array;
 	}
+
 	public JSONObject findnew() {
 		return dbcontent.desc("time").desc("_id").find();
 	}
+
 	public JSONArray searchByUid(String uid) {
-		JSONArray array = dbcontent.eq("ownid", uid).select();
+		JSONArray array = dbcontent.eq("ownid", uid).limit(30).select();
 		for (int i = 0; i < array.size(); i++) {
 			JSONObject _obj = (JSONObject) array.get(i);
 			String state = showstate(_obj.get("state").toString());
@@ -239,10 +222,11 @@ public class ContentModel {
 		}
 		return array;
 	}
+
 	public int updatesort(String oid, int sortNo) {
 		JSONObject object = new JSONObject();
 		object.put("sort", sortNo);
-		return dbcontent.eq("_id", new ObjectId(oid)).data(object).update()!=null?0:99;
+		return dbcontent.eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
 	}
 
 	public JSONArray search(JSONObject condString) {
@@ -262,62 +246,38 @@ public class ContentModel {
 
 	// 获取积分价值条件？？
 	public void getpoint() {
-		dbcontent.field("point").select();
+		dbcontent.field("point").limit(20).select();
 	}
 
+	// 根据栏目id查询文章（接口有待改进）
 	public JSONArray findByGroupID(String ogid) {
-		JSONArray _obj = new JSONArray();
-//		String content = session.get(_obj_session.get("content").toString());
-//		JSONArray array = (JSONArray) JSONValue.parse(content);
-		JSONArray array = dbcontent.select();
-		JSONObject object = new JSONObject();
-		for (int i = 0; i < array.size(); i++) {
-			object = (JSONObject) array.get(i);
-			if (ArraysUtil.contains(object.get("ogid").toString().split(","), ogid)) {
-//				object.remove("ogid");
-				_obj.add(object);
-			}
-//			String state = showstate(object.get("state").toString());
-//			object.put("state", state);
-		}
-		return _obj;
+		JSONArray array = dbcontent.eq("ogid", ogid).limit(20).select();
+		return array;
 	}
-	
-//	public JSONArray findByGroupID(String ogid) {
-//		JSONArray _obj = new JSONArray();
-////		String content = session.get(_obj_session.get("content").toString());
-//		
-////		JSONArray array = (JSONArray) JSONValue.parse(content);
-//		JSONArray array = dbcontent.select();
-//		JSONObject object = new JSONObject();
-//		for (int i = 0; i < array.size(); i++) {
-//			object = (JSONObject) array.get(i);
-//			if (ArraysUtil.contains(object.get("ogid").toString().split(","), ogid)) {
-//				String state = showstate(object.get("state").toString());
-//				object.put("state", state);
-//				_obj.add(object);
-//			}
-//		}
-//		return _obj;
-//	}
-	
-//	public JSONArray findByWebID(String wbid) {
-//		JSONArray _obj = new JSONArray();
-////		String content = session.get(_obj_session.get("content").toString());
-////		JSONArray array = (JSONArray) JSONValue.parse(content);
-//		JSONArray array =dbcontent.eq("wbid", wbid).select();
-//		JSONObject object = new JSONObject();
-//		for (int i = 0; i < array.size(); i++) {
-//			object = (JSONObject) array.get(i);
-//			if (ArraysUtil.contains(object.get("wbid").toString().split(","), wbid)) {
-//				object.remove("wbid");
-//			}
-//			String state = showstate(object.get("state").toString());
-//			object.put("state", state);
-//			_obj.add(object);
-//		}
-//		return _obj;
-//	}
+
+	public JSONArray findByGroupID(String ogid, int no) {
+		// 通过模糊查询，查询出该ogid对应的文章
+		return dbcontent.eq("ogid", ogid).limit(no).select();
+	}
+
+	// public JSONArray findByWebID(String wbid) {
+	// JSONArray _obj = new JSONArray();
+	//// String content = session.get(_obj_session.get("content").toString());
+	//// JSONArray array = (JSONArray) JSONValue.parse(content);
+	// JSONArray array =dbcontent.eq("wbid", wbid).select();
+	// JSONObject object = new JSONObject();
+	// for (int i = 0; i < array.size(); i++) {
+	// object = (JSONObject) array.get(i);
+	// if (ArraysUtil.contains(object.get("wbid").toString().split(","), wbid))
+	// {
+	// object.remove("wbid");
+	// }
+	// String state = showstate(object.get("state").toString());
+	// object.put("state", state);
+	// _obj.add(object);
+	// }
+	// return _obj;
+	// }
 
 	// 修改tempid
 	public int setTempId(String oid, String tempid) {
@@ -350,8 +310,9 @@ public class ContentModel {
 		JSONObject object = new JSONObject();
 		object.put("manageid", managerid);
 		object.put("state", state);
-		return dbcontent.eq("_id", new ObjectId(oid)).data(object).update()!=null?0:99;
+		return dbcontent.eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
 	}
+
 	public int delete(String[] arr) {
 		StringBuffer stringBuffer = new StringBuffer();
 		for (int i = 0; i < arr.length; i++) {
@@ -362,6 +323,7 @@ public class ContentModel {
 		}
 		return stringBuffer.length() == 0 ? 0 : 3;
 	}
+
 	public String showstate(String state) {
 		String msg = "";
 		switch (state) {
@@ -390,14 +352,16 @@ public class ContentModel {
 		String str = UUID.randomUUID().toString().trim();
 		return str.replace("-", "");
 	}
+
 	/**
 	 * 将map添加至JSONObject中
+	 * 
 	 * @param map
 	 * @param object
 	 * @return
 	 */
-	public JSONObject AddMap(HashMap<String, Object> map,JSONObject object) {
-		if (map.entrySet()!=null) {
+	public JSONObject AddMap(HashMap<String, Object> map, JSONObject object) {
+		if (map.entrySet() != null) {
 			Iterator<Entry<String, Object>> iterator = map.entrySet().iterator();
 			while (iterator.hasNext()) {
 				Map.Entry<String, Object> entry = (Map.Entry<String, Object>) iterator.next();
@@ -408,6 +372,7 @@ public class ContentModel {
 		}
 		return object;
 	}
+
 	public String resultMessage(int num, String msg) {
 		String message = null;
 		switch (num) {
