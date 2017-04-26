@@ -65,8 +65,10 @@ public class ContentModel {
 	}
 
 	public int UpdateArticle(String oid, JSONObject content) {
-		if (content.get("mainName").toString().equals("")) {
-			return 1;
+		if (content.containsKey("mainName")) {
+			if (content.get("mainName").toString().equals("")) {
+				return 1;
+			}
 		}
 		if (content.containsKey("_id")) {
 			content.remove("_id");
