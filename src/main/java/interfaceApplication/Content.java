@@ -1,26 +1,33 @@
 package interfaceApplication;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.json.simple.JSONObject;
 
 import esayhelper.JSONHelper;
+import esayhelper.StringHelper;
 import esayhelper.TimeHelper;
 import esayhelper.jGrapeFW_Message;
 import model.ContentModel;
+import session.session;
 
 @SuppressWarnings("unchecked")
 public class Content {
 	private ContentModel content = new ContentModel();
 	private HashMap<String, Object> defmap = new HashMap<>();
 	private JSONObject _obj = new JSONObject();
+	private static String info = "";
+	static {
+		session session = new session();
+		info = session.get("username").toString();
+	}
 
 	public Content() {
-//		defmap.put("oid", ContentModel.getID());
 		defmap.put("subName", null);
 		defmap.put("image", "1,2");
-		defmap.put("desp", null);
 		defmap.put("ownid", 0);
 		defmap.put("manageid", "");
 		defmap.put("fatherid", 0);
@@ -35,7 +42,7 @@ public class Content {
 		defmap.put("slevel", 0);
 		defmap.put("readCount", 0);
 		defmap.put("thirdsdkid", "");
-		defmap.put("time", TimeHelper.nowSecond()+"");
+		defmap.put("time", TimeHelper.nowSecond() + "");
 	}
 
 	/**
@@ -45,15 +52,14 @@ public class Content {
 	 * @return
 	 */
 	public String EditArticle(String oid, String contents) {
-		return content.resultMessage(content.UpdateArticle(oid, JSONHelper.string2json(
-				contents)), "文章更新成功").toString();
+		return content.resultMessage(content.UpdateArticle(oid, JSONHelper.string2json(contents)), "文章更新成功").toString();
 	}
 
 	/**
 	 * 删除文章
 	 * 
 	 * @param oid
-	 *          唯一识别符
+	 *            唯一识别符
 	 * @return
 	 */
 	public String DeleteArticle(String oid) {
@@ -65,20 +71,22 @@ public class Content {
 	 * 
 	 * @return
 	 */
-//	public String ShowArticle() {
-//		_obj.put("records", content.select());
-//		return StringEscapeUtils.unescapeJava(content.resultMessage(0, _obj.toString()));
-//	}
+	// public String ShowArticle() {
+	// _obj.put("records", content.select());
+	// return StringEscapeUtils.unescapeJava(content.resultMessage(0,
+	// _obj.toString()));
+	// }
 
 	/**
-	 * 获取最新的一篇文章信息
-	 * 排序条件(时间优先，_id次之)
+	 * 获取最新的一篇文章信息 排序条件(时间优先，_id次之)
+	 * 
 	 * @return
 	 */
 	public String FindNewArc() {
 		_obj.put("records", content.findnew());
 		return content.resultMessage(0, _obj.toString());
 	}
+
 	/**
 	 * 根据oid显示文章
 	 * 
@@ -126,19 +134,19 @@ public class Content {
 	 * 分页
 	 * 
 	 * @param idx
-	 *          当前页
+	 *            当前页
 	 * @param pageSize
-	 *          每页显示量
+	 *            每页显示量
 	 * @return
 	 */
 	public String Page(int idx, int pageSize) {
 		_obj.put("records", content.page(idx, pageSize));
-		return StringEscapeUtils.unescapeJava(content.resultMessage(0, _obj.toString()));
+		return content.resultMessage(0, _obj.toString());
 	}
 
 	public String PageBy(int idx, int pageSize, String contents) {
 		_obj.put("records", content.page(idx, pageSize, JSONHelper.string2json(contents)));
-		return StringEscapeUtils.unescapeJava(content.resultMessage(0, _obj.toString()));
+		return content.resultMessage(0, _obj.toString());
 	}
 
 	/**
@@ -151,15 +159,14 @@ public class Content {
 		_obj.put("records", content.findByGroupID(ogid));
 		return StringEscapeUtils.unescapeJava(jGrapeFW_Message.netMSG(0, _obj.toString()));
 	}
-	
 
 	/**
 	 * 修改排序值
 	 * 
 	 * @param oid
-	 *          文章id
+	 *            文章id
 	 * @param sortNo
-	 *          排序值
+	 *            排序值
 	 * @return 显示修改之前的数据
 	 */
 	public String sort(String oid, int sortNo) {
@@ -178,17 +185,39 @@ public class Content {
 	 * @return
 	 */
 	public String PublishArticle(String ArticleInfo) {
-		JSONObject object = content.AddMap(defmap, JSONHelper.string2json(ArticleInfo));
+		JSONObject object = JSONHelper.string2json(ArticleInfo);
+		// 获取当前站点
+		String wbid = JSONHelper.string2json(info).get("currentWeb").toString();
+		object = getwbid(wbid, object);
+		object = content.AddMap(defmap, JSONHelper.string2json(ArticleInfo));
 		return content.resultMessage(content.insert(object), "文章发布成功");
 	}
 
+	public JSONObject getwbid(String wbid,JSONObject object) {
+		List<String> list = new ArrayList<>();
+		if (object.containsKey("wbid")) {
+			String wbsid = object.get("wbid").toString();
+			if (wbsid.contains(",")) {
+				String[] value = wbsid.split(",");
+				for (int i = 0; i < value.length; i++) {
+					list.add(value[i]);
+				}
+			}else{
+				list.add(wbid);
+			}
+			list.add(wbid);
+			wbid = StringHelper.join(list);
+		}
+		object.put("wbid", wbid);
+		return object;
+	}
 	/**
 	 * 删除指定栏目下的文章
 	 * 
 	 * @param oid
-	 *          文章id
+	 *            文章id
 	 * @param ogid
-	 *          栏目id
+	 *            栏目id
 	 * @return
 	 */
 	public String DeleteByOgid(String oid, String ogid) {
@@ -199,9 +228,9 @@ public class Content {
 	 * 删除指定站点下的文章
 	 * 
 	 * @param oid
-	 *          文章id
+	 *            文章id
 	 * @param wbid
-	 *          站点id
+	 *            站点id
 	 * @return
 	 */
 	public String DeleteByWbID(String oid, String wbid) {

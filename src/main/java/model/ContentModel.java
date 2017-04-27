@@ -7,15 +7,18 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.Map.Entry;
 
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import esayhelper.DBHelper;
+import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
 import esayhelper.formHelper.formdef;
+import io.netty.util.internal.StringUtil;
 import jodd.util.ArraysUtil;
 
 @SuppressWarnings("unchecked")
@@ -169,17 +172,12 @@ public class ContentModel {
 
 	public JSONObject page(int idx, int pageSize) {
 		JSONArray array = dbcontent.page(idx, pageSize);
-		JSONObject object = new JSONObject() {
-			private static final long serialVersionUID = 1L;
-
-			{
-				put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
-				put("currentPage", idx);
-				put("pageSize", pageSize);
-				put("data", array);
-
-			}
-		};
+		String string = StringEscapeUtils.unescapeHtml4(array.toString());
+		JSONObject object = new JSONObject();
+		object.put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
+		object.put("currentPage", idx);
+		object.put("pageSize", pageSize);
+		object.put("data", JSONHelper.string2array(string));
 		return object;
 	}
 
@@ -191,17 +189,12 @@ public class ContentModel {
 			dbcontent.eq(object2.toString(), content.get(object2.toString()));
 		}
 		JSONArray array = dbcontent.page(idx, pageSize);
-		JSONObject object = new JSONObject() {
-			private static final long serialVersionUID = 1L;
-
-			{
-				put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
-				put("currentPage", idx);
-				put("pageSize", pageSize);
-				put("data", array);
-
-			}
-		};
+		JSONObject object = new JSONObject();
+		String string = StringEscapeUtils.unescapeHtml4(array.toString());
+		object.put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
+		object.put("currentPage", idx);
+		object.put("pageSize", pageSize);
+		object.put("data", JSONHelper.string2array(string));
 		return object;
 	}
 

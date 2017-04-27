@@ -1,17 +1,17 @@
 package test;
 
-import interfaceApplication.Content;
+import httpServer.booter;
 
 public class test {
 //	private Content content = new Content();
 	public static void main(String[] args) {
-		Content content = new Content();
-		long start = System.currentTimeMillis();
-		for (int i = 0; i < 500; i++) {
-			System.out.println(content.ShowByGroupId("58f62d741a4769cbf53907b6"));
+		booter booter = new booter();
+		try {
+			System.out.println("GrapeContent!");
+			System.setProperty("AppName", "GrapeContent");
+			booter.start(1003);
+		} catch (Exception e) {
+			// TODO: handle exception
 		}
-//		System.out.println(content.ShowByGroupId("58f62d741a4769cbf53907b6"));
-		long end = System.currentTimeMillis();
-		System.out.println(end-start);
 	}
 }
