@@ -164,7 +164,7 @@ public class Content {
 	 */
 	public String ShowByGroupId(String ogid) {
 		_obj.put("records", content.findByGroupID(ogid));
-		return StringEscapeUtils.unescapeJava(jGrapeFW_Message.netMSG(0, _obj.toString()));
+		return jGrapeFW_Message.netMSG(0, _obj.toString());
 	}
 
 	/**

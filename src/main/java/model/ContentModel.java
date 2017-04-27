@@ -165,7 +165,7 @@ public class ContentModel {
 		object.put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
-		object.put("data", getContent(array));
+		object.put("data", array);
 		return object;
 	}
 
@@ -181,23 +181,23 @@ public class ContentModel {
 		object.put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
-		object.put("data", getContent(array));
+		object.put("data", array);
 		return object;
 	}
 
 	public JSONArray select(String oid) {
 		JSONArray array = dbcontent.eq("_id", new ObjectId(oid)).limit(30).select();
-		return getContent(array);
+		return array;
 	}
 
 	public JSONObject findnew() {
 		JSONObject object = dbcontent.desc("time").desc("_id").find();
-		return getContent(object);
+		return object;
 	}
 
 	public JSONArray searchByUid(String uid) {
 		JSONArray array = dbcontent.eq("ownid", uid).limit(30).select();
-		return getContent(array);
+		return array;
 	}
 
 	public int updatesort(String oid, int sortNo) {
@@ -212,7 +212,7 @@ public class ContentModel {
 			dbcontent.eq(object2.toString(), condString.get(object2.toString()));
 		}
 		JSONArray array = dbcontent.limit(30).select();
-		return getContent(array);
+		return array;
 	}
 
 	// 获取积分价值条件？？
@@ -223,7 +223,7 @@ public class ContentModel {
 	// 根据栏目id查询文章（接口有待改进）
 	public JSONArray findByGroupID(String ogid) {
 		JSONArray array = dbcontent.eq("ogid", ogid).limit(20).select();
-		return getContent(array);
+		return array;
 	}
 
 	public JSONArray findByGroupID(String ogid, int no) {
@@ -277,32 +277,32 @@ public class ContentModel {
 	}
 
 	// 文章内容解码显示
-	public JSONArray getContent(JSONArray array) {
-		JSONArray arrays = new JSONArray();
-		for (int i = 0, len = array.size(); i < len; i++) {
-			JSONObject object = (JSONObject) array.get(i);
-			object.put("content", dencode(object.get("content").toString()));
-			arrays.add(object);
-		}
-		return arrays;
-	}
+//	public JSONArray getContent(JSONArray array) {
+//		JSONArray arrays = new JSONArray();
+//		for (int i = 0, len = array.size(); i < len; i++) {
+//			JSONObject object = (JSONObject) array.get(i);
+//			object.put("content", dencode(object.get("content").toString()));
+//			arrays.add(object);
+//		}
+//		return arrays;
+//	}
 
 	// 文章内容解码显示
-	public JSONObject getContent(JSONObject object) {
-		String content = dencode(object.get("content").toString());
-		object.put("content", content);
-		return object;
-	}
+//	public JSONObject getContent(JSONObject object) {
+//		String content = dencode(object.get("content").toString());
+//		object.put("content", content);
+//		return object;
+//	}
 
-	public String dencode(String content) {
-		String encontent = null;
-		try {
-			encontent = URLDecoder.decode(content, "UTF-8");
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		}
-		return encontent;
-	}
+//	public String dencode(String content) {
+//		String encontent = null;
+//		try {
+//			encontent = URLDecoder.decode(content, "UTF-8");
+//		} catch (UnsupportedEncodingException e) {
+//			e.printStackTrace();
+//		}
+//		return encontent;
+//	}
 
 	public String showstate(String state) {
 		String msg = "";
