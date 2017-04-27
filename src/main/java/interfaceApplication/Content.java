@@ -1,5 +1,7 @@
 package interfaceApplication;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +32,7 @@ public class Content {
 		defmap.put("image", "1,2");
 		defmap.put("ownid", 0);
 		defmap.put("manageid", "");
+		defmap.put("content", "");
 		defmap.put("fatherid", 0);
 		defmap.put("ogid", 0);
 		defmap.put("attrid", 0);
@@ -52,7 +55,11 @@ public class Content {
 	 * @return
 	 */
 	public String EditArticle(String oid, String contents) {
-		return content.resultMessage(content.UpdateArticle(oid, JSONHelper.string2json(contents)), "文章更新成功").toString();
+		JSONObject infos = JSONHelper.string2json(contents);
+		if (infos.containsKey("content")) {
+			infos.put("content", encode(infos.get("content").toString()));
+		}
+		return content.resultMessage(content.UpdateArticle(oid, infos), "文章更新成功");
 	}
 
 	/**
@@ -190,9 +197,20 @@ public class Content {
 		String wbid = JSONHelper.string2json(info).get("currentWeb").toString();
 		object = getwbid(wbid, object);
 		object = content.AddMap(defmap, JSONHelper.string2json(ArticleInfo));
+		object.put("content", encode(object.get("content").toString()));
 		return content.resultMessage(content.insert(object), "文章发布成功");
 	}
 
+	//编码
+	public String encode(String htmlContent) {
+		String content=null;
+		try {
+			content = URLEncoder.encode(htmlContent,"utf-8");
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return content;
+	}
 	public JSONObject getwbid(String wbid,JSONObject object) {
 		List<String> list = new ArrayList<>();
 		if (object.containsKey("wbid")) {
