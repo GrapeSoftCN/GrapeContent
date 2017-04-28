@@ -222,7 +222,7 @@ public class ContentModel {
 
 	// 根据栏目id查询文章（接口有待改进）
 	public JSONArray findByGroupID(String ogid) {
-		JSONArray array = dbcontent.eq("ogid", ogid).limit(20).select();
+		JSONArray array = dbcontent.desc("time").eq("ogid", ogid).limit(20).select();
 		return array;
 	}
 

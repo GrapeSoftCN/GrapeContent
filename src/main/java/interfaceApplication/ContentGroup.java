@@ -16,6 +16,7 @@ public class ContentGroup {
 	private ContentGroupModel group = new ContentGroupModel();
 	private HashMap<String, Object> defcol = new HashMap<>();
 	private JSONObject _obj = new JSONObject();
+	
 
 	public ContentGroup() {
 		defcol.put("ogid", ContentModel.getID());
@@ -29,8 +30,9 @@ public class ContentGroup {
 
 	// 新增
 	public String GroupInsert(String GroupInfo) {
-		JSONObject groupinfo = group.AddMap(defcol, JSONHelper.string2json(GroupInfo));
-		return group.resultMessage(group.AddGroup(groupinfo), "新增内容组成功");
+		JSONObject ginfos = group.AddMap(defcol, JSONHelper.string2json(GroupInfo));
+		_obj.put("records", JSONHelper.string2json(group.AddGroup(ginfos)));
+		return group.resultMessage(0, _obj.toString());
 	}
 
 	// 编辑
@@ -41,11 +43,11 @@ public class ContentGroup {
 	// 删除
 	public String GroupDelete(String ogid) {
 		int code = 0;
-		// 根据内容组显示文章
-		JSONArray array = (JSONArray) JSONValue.parse(new Content().ShowByGroupId(ogid));
-		if (array.size() != 0) {
-			// 含有该内容组的文章设置为默认值
-			code = new ContentModel().setGroup(array, ogid);
+		ContentModel model = new ContentModel();
+		JSONArray array = model.findByGroupID(ogid);
+		if (array.size()!=0) {
+			// 根据内容组显示文章
+				code = model.setGroup(array, ogid);
 		}
 		if (code == 0) {
 			code = group.DeleteGroup(ogid);
@@ -72,13 +74,13 @@ public class ContentGroup {
 	// 分页
 	public String GroupPage(int idx, int pageSize) {
 		_obj.put("records", group.page(idx, pageSize));
-		return StringEscapeUtils.unescapeJava(group.resultMessage(0, _obj.toString()));
+		return group.resultMessage(0, _obj.toString());
 	}
 
 	// 条件分页
 	public String GroupPageBy(int idx, int pageSize, String GroupInfo) {
 		_obj.put("records", group.page(idx, pageSize, JSONHelper.string2json(GroupInfo)));
-		return StringEscapeUtils.unescapeJava(group.resultMessage(0, _obj.toString()));
+		return group.resultMessage(0, _obj.toString());
 	}
 
 	// 设置密级

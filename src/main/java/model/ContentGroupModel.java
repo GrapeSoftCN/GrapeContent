@@ -29,7 +29,8 @@ public class ContentGroupModel {
 	// }
 
 	public ContentGroupModel() {
-		_form.putRule("name"/* ,type */, formHelper.formdef.notNull);
+		_form.putRule("name", formHelper.formdef.notNull);
+		_form.putRule("type", formHelper.formdef.notNull);
 	}
 
 	public JSONObject find_contentnamebyName(String name) {
@@ -48,21 +49,22 @@ public class ContentGroupModel {
 	 * @return 1 内容组名称超过指定长度 2必填项没有填 3 表示该内容组已存在
 	 * 
 	 */
-	public int AddGroup(JSONObject groupinfo) {
+	public String AddGroup(JSONObject groupinfo) {
 		if (!_form.checkRuleEx(groupinfo)) {
-			return 2;
+			return resultMessage(2, "");
 		}
 		String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
 		if (!check_name(name)) {
-			return 1;
+			return resultMessage(1, "");
 		}
 		String type = groupinfo.get("type").toString();
 		if (find_contentnamebyName(name) != null) {
 			if (find_contentnamebyType(type) != null) {
-				return 3;
+				return resultMessage(3, "");
 			}
 		}
-		return dbcontent.data(groupinfo).insertOnce() != null ? 0 : 99;
+		String info = dbcontent.data(groupinfo).insertOnce().toString();
+		return  find(info).toString();
 	}
 
 	public int UpdateGroup(String ogid, JSONObject groupinfo) {
@@ -75,17 +77,16 @@ public class ContentGroupModel {
 		if (!check_name(name)) {
 			return 1;
 		}
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(groupinfo).update() != null ? 0
-				: 99;
+		return dbcontent.eq("_id", new ObjectId(ogid)).data(groupinfo).update() != null ? 0 : 99;
 	}
 
 	public int DeleteGroup(String ogid) {
 		return dbcontent.eq("_id", new ObjectId(ogid)).delete() != null ? 0 : 99;
 	}
 
-	// public JSONArray select() {
-	// return dbcontent.select();
-	// }
+	public JSONObject find(String ogid) {
+		return dbcontent.eq("_id", new ObjectId(ogid)).find();
+	}
 
 	@SuppressWarnings("unchecked")
 	public JSONArray select(String contentInfo) {
@@ -97,23 +98,18 @@ public class ContentGroupModel {
 		return dbcontent.limit(20).select();
 	}
 
+	@SuppressWarnings("unchecked")
 	public JSONObject page(int idx, int pageSize) {
 		JSONArray array = dbcontent.page(idx, pageSize);
-		@SuppressWarnings("unchecked")
-		JSONObject object = new JSONObject() {
-			private static final long serialVersionUID = 1L;
-
-			{
-				put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
-				put("currentPage", idx);
-				put("pageSize", pageSize);
-				put("data", array);
-
-			}
-		};
+		JSONObject object = new JSONObject();
+		object.put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
+		object.put("currentPage", idx);
+		object.put("pageSize", pageSize);
+		object.put("data", array);
 		return object;
 	}
 
+	@SuppressWarnings("unchecked")
 	public JSONObject page(int idx, int pageSize, JSONObject GroupInfo) {
 		for (Object object2 : GroupInfo.keySet()) {
 			if (GroupInfo.containsKey("_id")) {
@@ -122,17 +118,11 @@ public class ContentGroupModel {
 			dbcontent.eq(object2.toString(), GroupInfo.get(object2.toString()));
 		}
 		JSONArray array = dbcontent.page(idx, pageSize);
-		@SuppressWarnings("unchecked")
-		JSONObject object = new JSONObject() {
-			private static final long serialVersionUID = 1L;
-			{
-				put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
-				put("currentPage", idx);
-				put("pageSize", pageSize);
-				put("data", array);
-
-			}
-		};
+		JSONObject object = new JSONObject();
+		object.put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
+		object.put("currentPage", idx);
+		object.put("pageSize", pageSize);
+		object.put("data", array);
 		return object;
 	}
 
@@ -165,11 +155,11 @@ public class ContentGroupModel {
 	}
 
 	public int delete(String[] arr) {
-		dbcontent = (DBHelper) dbcontent.or();
+		dbcontent.or();
 		for (int i = 0; i < arr.length; i++) {
 			dbcontent.eq("_id", new ObjectId(arr[i]));
 		}
-		return dbcontent.delete() != null ? 0 : 99;
+		return dbcontent.deleteAll() != arr.length ? 0 : 99;
 	}
 
 	public boolean check_name(String name) {
