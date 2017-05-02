@@ -14,19 +14,12 @@ import esayhelper.StringHelper;
 import esayhelper.TimeHelper;
 import esayhelper.jGrapeFW_Message;
 import model.ContentModel;
-import rpc.execRequest;
-import session.session;
 
 @SuppressWarnings("unchecked")
 public class Content {
 	private ContentModel content = new ContentModel();
 	private HashMap<String, Object> defmap = new HashMap<>();
 	private JSONObject _obj = new JSONObject();
-	private static String info = "";
-	static {
-		session session = new session();
-		info = session.get("username").toString();
-	}
 
 	public Content() {
 		defmap.put("subName", null);
@@ -102,7 +95,7 @@ public class Content {
 	 */
 	public String findArticle(String oid) {
 		_obj.put("records", content.select(oid));
-		return StringEscapeUtils.unescapeJava(content.resultMessage(0, _obj.toString()));
+		return content.resultMessage(0, _obj.toString());
 	}
 
 	/**
@@ -195,8 +188,8 @@ public class Content {
 	public String PublishArticle(String ArticleInfo) {
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
 		// 获取当前站点
-		String wbid = JSONHelper.string2json(info).get("currentWeb").toString();
-		object = getwbid(wbid, object);
+//		String wbid = JSONHelper.string2json(info).get("currentWeb").toString();
+//		object = getwbid(wbid, object);
 		object = content.AddMap(defmap, JSONHelper.string2json(ArticleInfo));
 		object.put("content", encode(object.get("content").toString()));
 		return content.resultMessage(content.insert(object), "文章发布成功");

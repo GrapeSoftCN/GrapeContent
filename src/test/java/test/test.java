@@ -1,9 +1,10 @@
 package test;
 
+
 import httpServer.booter;
+import interfaceApplication.ContentGroup;
 
 public class test {
-//	private Content content = new Content();
 	public static void main(String[] args) {
 		booter booter = new booter();
 		try {
@@ -11,7 +12,7 @@ public class test {
 			System.setProperty("AppName", "GrapeContent");
 			booter.start(1003);
 		} catch (Exception e) {
-			// TODO: handle exception
 		}
+//		System.out.println(new ContentGroup().);
 	}
 }

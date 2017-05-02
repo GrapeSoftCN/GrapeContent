@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.Map.Entry;
 
+import org.apache.commons.lang3.ObjectUtils.Null;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -15,6 +16,8 @@ import esayhelper.DBHelper;
 import esayhelper.JSONHelper;
 import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
+import interrupt.interrupt;
+import rpc.execRequest;
 
 public class ContentGroupModel {
 	private static formHelper _form;
@@ -33,14 +36,34 @@ public class ContentGroupModel {
 		_form.putRule("type", formHelper.formdef.notNull);
 	}
 
-	public JSONObject find_contentnamebyName(String name) {
-		JSONObject object = dbcontent.eq("name", name).find();
+	public JSONObject find_contentnamebyName(String name, String type) {
+		JSONObject object = dbcontent.eq("name", name).eq("type", type).find();
 		return object;
 	}
 
-	public JSONObject find_contentnamebyType(String type) {
-		JSONObject object = dbcontent.eq("type", type).find();
-		return object;
+	// 根据类型查询栏目，指定数量
+	public JSONArray findByType(String type, int no) {
+		JSONArray array = dbcontent.eq("type", type).limit(no).select();
+		return join(array);
+	}
+
+	// 获取模版id，合并到jsonarray
+	@SuppressWarnings("unchecked")
+	private JSONArray join(JSONArray array) {
+		JSONArray arrays = new JSONArray();
+		for (int i = 0, len = array.size(); i < len; i++) {
+			JSONObject object = (JSONObject) array.get(i);
+			if (object.get("tempid").toString().equals("0")) {
+				object.put("tempname", null);
+			}else{
+				String temp = execRequest
+						._run("GrapeTemplate/TemplateContext/TempFindByTid/s:" + object.get("tempid").toString(), null)
+						.toString();
+				object.put("tempname", temp);
+			}
+			arrays.add(object);
+		}
+		return arrays;
 	}
 
 	/**
@@ -58,20 +81,16 @@ public class ContentGroupModel {
 			return resultMessage(1, "");
 		}
 		String type = groupinfo.get("type").toString();
-		if (find_contentnamebyName(name) != null) {
-			if (find_contentnamebyType(type) != null) {
-				return resultMessage(3, "");
-			}
+		if (find_contentnamebyName(name, type) != null) {
+			return resultMessage(3, "");
 		}
 		String info = dbcontent.data(groupinfo).insertOnce().toString();
-		return  find(info).toString();
+		return find(info).toString();
 	}
 
 	public int UpdateGroup(String ogid, JSONObject groupinfo) {
-		if (find_contentnamebyName(groupinfo.get("name").toString()) != null) {
-			if (find_contentnamebyType(groupinfo.get("type").toString()) != null) {
-				return 3;
-			}
+		if (find_contentnamebyName(groupinfo.get("name").toString(), groupinfo.get("type").toString()) != null) {
+			return 3;
 		}
 		String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
 		if (!check_name(name)) {
@@ -159,7 +178,7 @@ public class ContentGroupModel {
 		for (int i = 0; i < arr.length; i++) {
 			dbcontent.eq("_id", new ObjectId(arr[i]));
 		}
-		return dbcontent.deleteAll() != arr.length ? 0 : 99;
+		return dbcontent.deleteAll() == arr.length ? 0 : 99;
 	}
 
 	public boolean check_name(String name) {

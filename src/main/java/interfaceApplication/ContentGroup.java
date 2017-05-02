@@ -55,12 +55,10 @@ public class ContentGroup {
 		return group.resultMessage(code, "删除内容组成功");
 	}
 
-	// public String GroupSelect() {
-	// _obj.put("records", group.select());
-	// return StringEscapeUtils.unescapeJava(group.resultMessage(0,
-	// _obj.toString()));
-	// }
-	// 搜索
+	public String FindByType(String type,int no) {
+		_obj.put("records", group.findByType(type, no));
+		return group.resultMessage(0, _obj.toString());
+	}
 	public String GroupFind(String groupinfo) {
 		_obj.put("records", group.select(groupinfo));
 		return StringEscapeUtils.unescapeJava(group.resultMessage(0, _obj.toString()));

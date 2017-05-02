@@ -1,7 +1,5 @@
 package model;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -185,9 +183,9 @@ public class ContentModel {
 		return object;
 	}
 
-	public JSONArray select(String oid) {
-		JSONArray array = dbcontent.eq("_id", new ObjectId(oid)).limit(30).select();
-		return array;
+	public JSONObject select(String oid) {
+		JSONObject object = dbcontent.eq("_id", new ObjectId(oid)).find();
+		return object;
 	}
 
 	public JSONObject findnew() {
@@ -266,14 +264,11 @@ public class ContentModel {
 	}
 
 	public int delete(String[] arr) {
-		StringBuffer stringBuffer = new StringBuffer();
+		dbcontent.or();
 		for (int i = 0; i < arr.length; i++) {
-			int code = DeleteArticle(arr[i]);
-			if (code != 0) {
-				stringBuffer.append((i + 1) + ",");
-			}
+			dbcontent.eq("_id", new ObjectId(arr[i]));
 		}
-		return stringBuffer.length() == 0 ? 0 : 3;
+		return dbcontent.deleteAll() == arr.length ? 0 : 99;
 	}
 
 	// 文章内容解码显示
