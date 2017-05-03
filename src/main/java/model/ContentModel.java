@@ -271,6 +271,10 @@ public class ContentModel {
 		return dbcontent.deleteAll() == arr.length ? 0 : 99;
 	}
 
+	public JSONArray find(String ogid,int no) {
+		JSONArray array = dbcontent.eq("ogid", ogid).limit(no).field("image,desp").select();
+		return array;
+	}
 	// 文章内容解码显示
 //	public JSONArray getContent(JSONArray array) {
 //		JSONArray arrays = new JSONArray();

@@ -5,7 +5,6 @@ import java.util.HashMap;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.json.simple.JSONValue;
 
 import esayhelper.JSONHelper;
 import model.ContentGroupModel;

@@ -269,4 +269,8 @@ public class Content {
 	public String BatchDelete(String oid) {
 		return content.resultMessage(content.delete(oid.split(",")), "批量删除成功");
 	}
+	public String getImgs(String ogid, int no) {
+		_obj.put("records", content.find(ogid, no));
+		return content.resultMessage(0, _obj.toString());
+	}
 }
