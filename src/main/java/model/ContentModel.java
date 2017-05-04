@@ -3,8 +3,6 @@ package model;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 import java.util.Map.Entry;
 
 import org.bson.types.ObjectId;
@@ -22,15 +20,17 @@ import jodd.util.ArraysUtil;
 public class ContentModel {
 	private static DBHelper dbcontent;
 	private static formHelper _form;
+	private JSONObject _obj = new JSONObject();
+	
 	static {
 		dbcontent = new DBHelper("mongodb", "content");
 		_form = dbcontent.getChecker();
 	}
 
 	public ContentModel() {
-		_form.putRule("mainName"/* ,content,wbid" */, formdef.notNull);
-		// 获取用户的权限值
-
+		_form.putRule("mainName", formdef.notNull);
+		_form.putRule("content", formdef.notNull);
+		_form.putRule("wbid", formdef.notNull);
 	}
 
 	/**
@@ -84,10 +84,6 @@ public class ContentModel {
 		// 获取栏目id
 		String values = _obj.get("ogid").toString();
 		values = values.replace(ogid, "");
-		// String[] value = _obj.get("ogid").toString().split(",");
-		// String fieldValue = StringHelper.join(ArraysUtil.remove(value,
-		// ArraysUtil.indexOf(
-		// value, ogid), 1));
 		JSONObject obj = new JSONObject();
 		obj.put("ogid", values);
 		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
@@ -139,22 +135,19 @@ public class ContentModel {
 		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
 	}
 
-	public int setGroup(JSONArray array, String ogid) {
-		int code = 99;
-		// 获取栏目id
-		for (int i = 0; i < array.size(); i++) {
-			JSONObject _obj = (JSONObject) array.get(i);
-			String values = _obj.get("ogid").toString();
-			values = values.replace(ogid, "0");
-			// ArraysUtil.remove(value, ArraysUtil.indexOf(value, ogid), 1);
-			// String values = StringHelper.join(ArraysUtil.append(value, "0"));
-			JSONObject obj = new JSONObject();
-			JSONObject obj1 = new JSONObject();
-			obj.put("ogid", values);
-			obj1 = (JSONObject) _obj.get("_id");
-			code = dbcontent.eq("_id", new ObjectId(obj1.get("$oid").toString())).data(obj).update() != null ? 0 : 99;
+	public int setGroup(String ogid) {
+		String cont = "{\"ogid\":0}";
+		if (ogid.contains(",")) {
+			String[] value = ogid.split(",");
+			int len = value.length;
+			dbcontent.or();
+			for (int i = 0; i < len; i++) {
+				dbcontent.eq("ogid", value[i]);
+			}
+		}else{
+			dbcontent.eq("ogid", ogid);
 		}
-		return code;
+		return dbcontent.data(cont).updateAll()!=0?0:99;
 	}
 
 	public JSONObject page(int idx, int pageSize) {
@@ -205,8 +198,7 @@ public class ContentModel {
 	}
 
 	public JSONArray search(JSONObject condString) {
-		Set<Object> set = condString.keySet();
-		for (Object object2 : set) {
+		for (Object object2 : condString.keySet()) {
 			dbcontent.eq(object2.toString(), condString.get(object2.toString()));
 		}
 		JSONArray array = dbcontent.limit(30).select();
@@ -218,7 +210,7 @@ public class ContentModel {
 		dbcontent.field("point").limit(20).select();
 	}
 
-	// 根据栏目id查询文章（接口有待改进）
+	// 根据栏目id查询文章
 	public JSONArray findByGroupID(String ogid) {
 		JSONArray array = dbcontent.desc("time").eq("ogid", ogid).limit(20).select();
 		return array;
@@ -275,33 +267,6 @@ public class ContentModel {
 		JSONArray array = dbcontent.eq("ogid", ogid).limit(no).field("image,desp").select();
 		return array;
 	}
-	// 文章内容解码显示
-//	public JSONArray getContent(JSONArray array) {
-//		JSONArray arrays = new JSONArray();
-//		for (int i = 0, len = array.size(); i < len; i++) {
-//			JSONObject object = (JSONObject) array.get(i);
-//			object.put("content", dencode(object.get("content").toString()));
-//			arrays.add(object);
-//		}
-//		return arrays;
-//	}
-
-	// 文章内容解码显示
-//	public JSONObject getContent(JSONObject object) {
-//		String content = dencode(object.get("content").toString());
-//		object.put("content", content);
-//		return object;
-//	}
-
-//	public String dencode(String content) {
-//		String encontent = null;
-//		try {
-//			encontent = URLDecoder.decode(content, "UTF-8");
-//		} catch (UnsupportedEncodingException e) {
-//			e.printStackTrace();
-//		}
-//		return encontent;
-//	}
 
 	public String showstate(String state) {
 		String msg = "";
@@ -320,16 +285,6 @@ public class ContentModel {
 			break;
 		}
 		return msg;
-	}
-
-	/**
-	 * 生成32位随机编码
-	 * 
-	 * @return
-	 */
-	public static String getID() {
-		String str = UUID.randomUUID().toString().trim();
-		return str.replace("-", "");
 	}
 
 	/**
@@ -352,6 +307,14 @@ public class ContentModel {
 		return object;
 	}
 
+	public String resultMessage(JSONObject object) {
+		_obj.put("records", object);
+		return resultMessage(0, _obj.toString());
+	}
+	public String resultMessage(JSONArray array) {
+		_obj.put("records", array);
+		return resultMessage(0, _obj.toString());
+	}
 	public String resultMessage(int num, String msg) {
 		String message = null;
 		switch (num) {
@@ -375,6 +338,15 @@ public class ContentModel {
 			break;
 		case 6:
 			message = "超过限制字数";
+			break;
+		case 7:
+			message = "没有创建数据权限，请联系管理员进行权限调整";
+			break;
+		case 8:
+			message = "没有修改数据权限，请联系管理员进行权限调整";
+			break;
+		case 9:
+			message = "没有删除数据权限，请联系管理员进行权限调整";
 			break;
 		default:
 			message = "其他异常";

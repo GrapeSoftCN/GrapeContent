@@ -29,6 +29,6 @@
 			<attribute name="owner.project.facets" value="java"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="C:/Users/win7/Desktop/GrapeFrame/GrapeFWNew/GrapeFW-0.0.1-SNAPSHOT-jar-with-dependencies.jar"/>
+	<classpathentry kind="lib" path="C:/Users/win7/Desktop/GrapeFrame/GrapeFWNew/GrapeFW1.08.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

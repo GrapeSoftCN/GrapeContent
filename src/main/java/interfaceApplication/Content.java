@@ -6,22 +6,23 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import org.apache.commons.lang3.StringEscapeUtils;
 import org.json.simple.JSONObject;
 
 import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import esayhelper.TimeHelper;
-import esayhelper.jGrapeFW_Message;
 import model.ContentModel;
+import rpc.execRequest;
 
 @SuppressWarnings("unchecked")
 public class Content {
 	private ContentModel content = new ContentModel();
 	private HashMap<String, Object> defmap = new HashMap<>();
-	private JSONObject _obj = new JSONObject();
+//	private String userId = "test111";
 
 	public Content() {
+//		userId = execRequest.getChannelValue("Userid").toString();
+
 		defmap.put("subName", null);
 		defmap.put("image", "1,2");
 		defmap.put("ownid", 0);
@@ -39,7 +40,10 @@ public class Content {
 		defmap.put("slevel", 0);
 		defmap.put("readCount", 0);
 		defmap.put("thirdsdkid", "");
-		defmap.put("time", TimeHelper.nowSecond() + "");
+		defmap.put("uplv", 2000);
+		defmap.put("rplv", 1000);
+		defmap.put("dplv", 3000);
+		defmap.put("time", TimeHelper.nowMillis() + "");
 	}
 
 	/**
@@ -49,11 +53,20 @@ public class Content {
 	 * @return
 	 */
 	public String EditArticle(String oid, String contents) {
+//		String uPLV = content.select(oid).get("uplv").toString();
+//		String tip = execRequest
+//				._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV + "/s:" + userId,
+//						null)
+//				.toString();
+//		if (!"0".equals(tip)) {
+//			return content.resultMessage(8, "没有编辑权限");
+//		}
 		JSONObject infos = JSONHelper.string2json(contents);
 		if (infos.containsKey("content")) {
 			infos.put("content", encode(infos.get("content").toString()));
 		}
-		return content.resultMessage(content.UpdateArticle(oid, infos), "文章更新成功");
+		return content.resultMessage(content.UpdateArticle(oid, infos),
+				"文章更新成功");
 	}
 
 	/**
@@ -64,19 +77,16 @@ public class Content {
 	 * @return
 	 */
 	public String DeleteArticle(String oid) {
+//		String dPLV = content.select(oid).get("dplv").toString();
+//		String tip = execRequest
+//				._run("GrapeAuth/Auth/DeletePLV/s:" + dPLV + "/s:" + userId,
+//						null)
+//				.toString();
+//		if (!"0".equals(tip)) {
+//			return content.resultMessage(9, "没有删除权限");
+//		}
 		return content.resultMessage(content.DeleteArticle(oid), "文章删除成功");
 	}
-
-	/**
-	 * 显示所有的文章
-	 * 
-	 * @return
-	 */
-	// public String ShowArticle() {
-	// _obj.put("records", content.select());
-	// return StringEscapeUtils.unescapeJava(content.resultMessage(0,
-	// _obj.toString()));
-	// }
 
 	/**
 	 * 获取最新的一篇文章信息 排序条件(时间优先，_id次之)
@@ -84,8 +94,7 @@ public class Content {
 	 * @return
 	 */
 	public String FindNewArc() {
-		_obj.put("records", content.findnew());
-		return content.resultMessage(0, _obj.toString());
+		return content.resultMessage(content.findnew());
 	}
 
 	/**
@@ -94,8 +103,7 @@ public class Content {
 	 * @return
 	 */
 	public String findArticle(String oid) {
-		_obj.put("records", content.select(oid));
-		return content.resultMessage(0, _obj.toString());
+		return content.resultMessage(content.select(oid));
 	}
 
 	/**
@@ -106,7 +114,19 @@ public class Content {
 	 * @return
 	 */
 	public String SetGroup(String oid, String ogid) {
+//		String uPLV = content.select(oid).get("uplv").toString();
+//		String tip = execRequest
+//				._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV + "/s:" + userId,
+//						null)
+//				.toString();
+//		if (!"0".equals(tip)) {
+//			return content.resultMessage(8, "没有编辑权限");
+//		}
 		return content.resultMessage(content.setGroup(oid, ogid), "设置内容组成功");
+	}
+
+	public String SetGroupBatch(String ogid) {
+		return content.resultMessage(content.setGroup(ogid), "设置内容组成功");
 	}
 
 	/**
@@ -116,8 +136,7 @@ public class Content {
 	 * @return
 	 */
 	public String findbyUser(String uid) {
-		_obj.put("records", content.searchByUid(uid));
-		return StringEscapeUtils.unescapeJava(content.resultMessage(0, _obj.toString()));
+		return content.resultMessage(content.searchByUid(uid));
 	}
 
 	/**
@@ -127,8 +146,8 @@ public class Content {
 	 * @return
 	 */
 	public String SearchArticle(String condString) {
-		_obj.put("records", content.search(JSONHelper.string2json(condString)));
-		return StringEscapeUtils.unescapeJava(content.resultMessage(0, _obj.toString()));
+		return content.resultMessage(
+				content.search(JSONHelper.string2json(condString)));
 	}
 
 	/**
@@ -141,13 +160,12 @@ public class Content {
 	 * @return
 	 */
 	public String Page(int idx, int pageSize) {
-		_obj.put("records", content.page(idx, pageSize));
-		return content.resultMessage(0, _obj.toString());
+		return content.resultMessage(content.page(idx, pageSize));
 	}
 
 	public String PageBy(int idx, int pageSize, String contents) {
-		_obj.put("records", content.page(idx, pageSize, JSONHelper.string2json(contents)));
-		return content.resultMessage(0, _obj.toString());
+		return content.resultMessage(
+				content.page(idx, pageSize, JSONHelper.string2json(contents)));
 	}
 
 	/**
@@ -157,8 +175,7 @@ public class Content {
 	 * @return
 	 */
 	public String ShowByGroupId(String ogid) {
-		_obj.put("records", content.findByGroupID(ogid));
-		return jGrapeFW_Message.netMSG(0, _obj.toString());
+		return content.resultMessage(content.findByGroupID(ogid));
 	}
 
 	/**
@@ -171,7 +188,16 @@ public class Content {
 	 * @return 显示修改之前的数据
 	 */
 	public String sort(String oid, int sortNo) {
-		return content.resultMessage(content.updatesort(oid, sortNo), "排序值修改成功");
+//		String uPLV = content.select(oid).get("uplv").toString();
+//		String tip = execRequest
+//				._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV + "/s:" + userId,
+//						null)
+//				.toString();
+//		if (!"0".equals(tip)) {
+//			return content.resultMessage(8, "没有编辑权限");
+//		}
+		return content.resultMessage(content.updatesort(oid, sortNo),
+				"排序值修改成功");
 	}
 
 	// 统计总阅读量(条件？？）
@@ -186,26 +212,34 @@ public class Content {
 	 * @return
 	 */
 	public String PublishArticle(String ArticleInfo) {
+		// 该用户是否拥有新增权限
+//		String tip = execRequest
+//				._run("GrapeAuth/Auth/InsertPLV/s:" + userId, null).toString();
+//		if (!"0".equals(tip)) {
+//			return content.resultMessage(7, "没有新增权限");
+//		}
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
 		// 获取当前站点
-//		String wbid = JSONHelper.string2json(info).get("currentWeb").toString();
-//		object = getwbid(wbid, object);
+		// String wbid =
+		// JSONHelper.string2json(info).get("currentWeb").toString();
+		// object = getwbid(wbid, object);
 		object = content.AddMap(defmap, JSONHelper.string2json(ArticleInfo));
 		object.put("content", encode(object.get("content").toString()));
 		return content.resultMessage(content.insert(object), "文章发布成功");
 	}
 
-	//编码
+	// 编码
 	public String encode(String htmlContent) {
-		String content=null;
+		String content = null;
 		try {
-			content = URLEncoder.encode(htmlContent,"utf-8");
+			content = URLEncoder.encode(htmlContent, "utf-8");
 		} catch (UnsupportedEncodingException e) {
 			e.printStackTrace();
 		}
 		return content;
 	}
-	public JSONObject getwbid(String wbid,JSONObject object) {
+
+	public JSONObject getwbid(String wbid, JSONObject object) {
 		List<String> list = new ArrayList<>();
 		if (object.containsKey("wbid")) {
 			String wbsid = object.get("wbid").toString();
@@ -214,7 +248,7 @@ public class Content {
 				for (int i = 0; i < value.length; i++) {
 					list.add(value[i]);
 				}
-			}else{
+			} else {
 				list.add(wbid);
 			}
 			list.add(wbid);
@@ -223,6 +257,7 @@ public class Content {
 		object.put("wbid", wbid);
 		return object;
 	}
+
 	/**
 	 * 删除指定栏目下的文章
 	 * 
@@ -233,7 +268,8 @@ public class Content {
 	 * @return
 	 */
 	public String DeleteByOgid(String oid, String ogid) {
-		return content.resultMessage(content.deleteByOgID(oid, ogid), "该栏目下文章删除成功");
+		return content.resultMessage(content.deleteByOgID(oid, ogid),
+				"该栏目下文章删除成功");
 	}
 
 	/**
@@ -246,7 +282,8 @@ public class Content {
 	 * @return
 	 */
 	public String DeleteByWbID(String oid, String wbid) {
-		return content.resultMessage(content.deleteByWbID(oid, wbid), "该站点下文章删除成功");
+		return content.resultMessage(content.deleteByWbID(oid, wbid),
+				"该站点下文章删除成功");
 	}
 
 	public String SetTempId(String oid, String tempid) {
@@ -254,7 +291,8 @@ public class Content {
 	}
 
 	public String Setfatherid(String oid, String fatherid) {
-		return content.resultMessage(content.setfatherid(oid, fatherid), "设置模版成功");
+		return content.resultMessage(content.setfatherid(oid, fatherid),
+				"设置模版成功");
 	}
 
 	public String Setslevel(String oid, String slevel) {
@@ -263,14 +301,16 @@ public class Content {
 
 	// 审核
 	public String Review(String oid, String managerid, String state) {
-		return content.resultMessage(content.review(oid, managerid, state), "审核文章操作成功");
+		return content.resultMessage(content.review(oid, managerid, state),
+				"审核文章操作成功");
 	}
 
 	public String BatchDelete(String oid) {
 		return content.resultMessage(content.delete(oid.split(",")), "批量删除成功");
 	}
+
+	// 获取图片及简介
 	public String getImgs(String ogid, int no) {
-		_obj.put("records", content.find(ogid, no));
-		return content.resultMessage(0, _obj.toString());
+		return content.resultMessage(content.find(ogid, no));
 	}
 }

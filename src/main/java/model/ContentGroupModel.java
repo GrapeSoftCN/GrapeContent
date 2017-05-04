@@ -1,13 +1,13 @@
 package model;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.Map.Entry;
 
-import org.apache.commons.lang3.ObjectUtils.Null;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -16,22 +16,21 @@ import esayhelper.DBHelper;
 import esayhelper.JSONHelper;
 import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
-import interrupt.interrupt;
 import rpc.execRequest;
 
 public class ContentGroupModel {
 	private static formHelper _form;
 	private static DBHelper dbcontent;
+	private JSONObject _obj = new JSONObject();
+
 	static {
 		dbcontent = new DBHelper("mongodb", "type");
 		_form = dbcontent.getChecker();
 	}
 
-	// public db getDB() {
-	// return dbcontent;
-	// }
-
 	public ContentGroupModel() {
+		// 获取用户id
+
 		_form.putRule("name", formHelper.formdef.notNull);
 		_form.putRule("type", formHelper.formdef.notNull);
 	}
@@ -53,13 +52,23 @@ public class ContentGroupModel {
 		JSONArray arrays = new JSONArray();
 		for (int i = 0, len = array.size(); i < len; i++) {
 			JSONObject object = (JSONObject) array.get(i);
-			if (object.get("tempid").toString().equals("0")) {
-				object.put("tempname", null);
-			}else{
+			if (object.get("tempContent").toString().equals("0")) {
+				object.put("tempContentname", null);
+			} else {
 				String temp = execRequest
-						._run("GrapeTemplate/TemplateContext/TempFindByTid/s:" + object.get("tempid").toString(), null)
+						._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+								+ object.get("tempContent").toString(), null)
 						.toString();
-				object.put("tempname", temp);
+				object.put("tempContentname", temp);
+			}
+			if (object.get("tempList").toString().equals("0")) {
+				object.put("tempListname", null);
+			} else {
+				String temp = execRequest
+						._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+								+ object.get("tempList").toString(), null)
+						.toString();
+				object.put("tempListname", temp);
 			}
 			arrays.add(object);
 		}
@@ -89,18 +98,21 @@ public class ContentGroupModel {
 	}
 
 	public int UpdateGroup(String ogid, JSONObject groupinfo) {
-		if (find_contentnamebyName(groupinfo.get("name").toString(), groupinfo.get("type").toString()) != null) {
+		if (find_contentnamebyName(groupinfo.get("name").toString(),
+				groupinfo.get("type").toString()) != null) {
 			return 3;
 		}
 		String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
 		if (!check_name(name)) {
 			return 1;
 		}
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(groupinfo).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(ogid)).data(groupinfo)
+				.update() != null ? 0 : 99;
 	}
 
 	public int DeleteGroup(String ogid) {
-		return dbcontent.eq("_id", new ObjectId(ogid)).delete() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(ogid)).delete() != null ? 0
+				: 99;
 	}
 
 	public JSONObject find(String ogid) {
@@ -121,7 +133,8 @@ public class ContentGroupModel {
 	public JSONObject page(int idx, int pageSize) {
 		JSONArray array = dbcontent.page(idx, pageSize);
 		JSONObject object = new JSONObject();
-		object.put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
+		object.put("totalSize",
+				(int) Math.ceil((double) dbcontent.count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
 		object.put("data", array);
@@ -132,13 +145,15 @@ public class ContentGroupModel {
 	public JSONObject page(int idx, int pageSize, JSONObject GroupInfo) {
 		for (Object object2 : GroupInfo.keySet()) {
 			if (GroupInfo.containsKey("_id")) {
-				dbcontent.eq("_id", new ObjectId(GroupInfo.get("_id").toString()));
+				dbcontent.eq("_id",
+						new ObjectId(GroupInfo.get("_id").toString()));
 			}
 			dbcontent.eq(object2.toString(), GroupInfo.get(object2.toString()));
 		}
 		JSONArray array = dbcontent.page(idx, pageSize);
 		JSONObject object = new JSONObject();
-		object.put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
+		object.put("totalSize",
+				(int) Math.ceil((double) dbcontent.count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
 		object.put("data", array);
@@ -149,28 +164,32 @@ public class ContentGroupModel {
 	public int setfatherid(String ogid, int fatherid) {
 		JSONObject object = new JSONObject();
 		object.put("fatherid", fatherid);
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(ogid)).data(object)
+				.update() != null ? 0 : 99;
 	}
 
 	@SuppressWarnings("unchecked")
 	public int setsort(String ogid, int num) {
 		JSONObject object = new JSONObject();
 		object.put("sort", num);
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(ogid)).data(object)
+				.update() != null ? 0 : 99;
 	}
 
 	@SuppressWarnings("unchecked")
 	public int setTempId(String ogid, String tempid) {
 		JSONObject object = new JSONObject();
 		object.put("tempid", tempid);
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(ogid)).data(object)
+				.update() != null ? 0 : 99;
 	}
 
 	@SuppressWarnings("unchecked")
 	public int setslevel(String ogid, int slevel) {
 		JSONObject object = new JSONObject();
 		object.put("slevel", slevel);
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(ogid)).data(object)
+				.update() != null ? 0 : 99;
 	}
 
 	public int delete(String[] arr) {
@@ -199,14 +218,28 @@ public class ContentGroupModel {
 		return dbcontent.eq("fatherid", ogid).select();
 	}
 
-	/**
-	 * 生成32位随机编码
-	 * 
-	 * @return
-	 */
-	public static String getID() {
-		String str = UUID.randomUUID().toString().trim();
-		return str.replace("-", "");
+	// 获取所有子栏目的id
+	public JSONArray getColumn(String ogid) {
+		if (ogid.contains(",")) {
+			dbcontent.or();
+			String[] value = ogid.split(",");
+			for (int i = 0, len = value.length; i < len; i++) {
+				dbcontent.eq("fatherid", value[i]);
+			}
+		} else {
+			dbcontent.eq("fatherid", ogid);
+		}
+		return dbcontent.field("_id").limit(20).select();
+	}
+
+	public List<String> getList(JSONArray array) {
+		List<String> list = new ArrayList<>();
+		for (int i = 0, len = array.size(); i < len; i++) {
+			JSONObject object = (JSONObject) array.get(i);
+			JSONObject obj = (JSONObject) object.get("_id");
+			list.add(obj.get("$oid").toString());
+		}
+		return list;
 	}
 
 	/**
@@ -219,15 +252,29 @@ public class ContentGroupModel {
 	@SuppressWarnings("unchecked")
 	public JSONObject AddMap(HashMap<String, Object> map, JSONObject object) {
 		if (map.entrySet() != null) {
-			Iterator<Entry<String, Object>> iterator = map.entrySet().iterator();
+			Iterator<Entry<String, Object>> iterator = map.entrySet()
+					.iterator();
 			while (iterator.hasNext()) {
-				Map.Entry<String, Object> entry = (Map.Entry<String, Object>) iterator.next();
+				Map.Entry<String, Object> entry = (Map.Entry<String, Object>) iterator
+						.next();
 				if (!object.containsKey(entry.getKey())) {
 					object.put(entry.getKey(), entry.getValue());
 				}
 			}
 		}
 		return object;
+	}
+
+	@SuppressWarnings("unchecked")
+	public String resultMessage(JSONObject object) {
+		_obj.put("records", object);
+		return resultMessage(0, _obj.toString());
+	}
+
+	@SuppressWarnings("unchecked")
+	public String resultMessage(JSONArray array) {
+		_obj.put("records", array);
+		return resultMessage(0, _obj.toString());
 	}
 
 	public String resultMessage(int num, String msg) {
@@ -244,6 +291,15 @@ public class ContentGroupModel {
 			break;
 		case 3:
 			message = "不允许重复添加";
+			break;
+		case 4:
+			message = "没有创建数据权限，请联系管理员进行权限调整";
+			break;
+		case 5:
+			message = "没有修改数据权限，请联系管理员进行权限调整";
+			break;
+		case 6:
+			message = "没有删除数据权限，请联系管理员进行权限调整";
 			break;
 		default:
 			message = "其他异常";
