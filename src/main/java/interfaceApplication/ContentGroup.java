@@ -1,6 +1,7 @@
 package interfaceApplication;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
@@ -165,5 +166,29 @@ public class ContentGroup {
 	public String getColumnByFid(String ogid) {
 		return group.resultMessage(group.getColumnByFid(ogid));
 	}
-
+	//获得上级栏目id，name，fatherid
+	public String getPrevCol(String ogid) {
+		return group.find(ogid).toString();
+	}
+	//获取当前文章所在栏目位置
+	@SuppressWarnings("unchecked")
+	public String getPreColumn(String ogid) {
+		JSONObject object = group.find(ogid);
+		JSONObject obj = new JSONObject();
+		List<JSONObject> list = new ArrayList<>();
+		String fatherid = object.get("fatherid").toString();
+		JSONObject objID = (JSONObject) object.get("_id");
+		obj.put("_id", objID.get("$oid").toString());
+		obj.put("name", object.get("name").toString());
+		list.add(obj);
+		while (!"0".equals(fatherid)) {
+			String prevCol = getPrevCol(fatherid);
+			fatherid = JSONHelper.string2json(prevCol).get("fatherid")
+					.toString();
+			list = group.getName(list, JSONHelper.string2json(prevCol));
+			
+		}
+		Collections.reverse(list); // list倒序排列
+		return group.resultMessage(JSONHelper.string2array(list.toString()));
+	}
 }

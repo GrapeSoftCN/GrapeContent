@@ -53,22 +53,22 @@ public class ContentGroupModel {
 		for (int i = 0, len = array.size(); i < len; i++) {
 			JSONObject object = (JSONObject) array.get(i);
 			if (object.get("tempContent").toString().equals("0")) {
-				object.put("tempContentname", null);
+				object.put("tempContent", null);
 			} else {
 				String temp = execRequest
 						._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
 								+ object.get("tempContent").toString(), null)
 						.toString();
-				object.put("tempContentname", temp);
+				object.put("tempContent", temp);
 			}
 			if (object.get("tempList").toString().equals("0")) {
-				object.put("tempListname", null);
+				object.put("tempList", null);
 			} else {
 				String temp = execRequest
 						._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
 								+ object.get("tempList").toString(), null)
 						.toString();
-				object.put("tempListname", temp);
+				object.put("tempList", temp);
 			}
 			arrays.add(object);
 		}
@@ -98,13 +98,11 @@ public class ContentGroupModel {
 	}
 
 	public int UpdateGroup(String ogid, JSONObject groupinfo) {
-		if (find_contentnamebyName(groupinfo.get("name").toString(),
-				groupinfo.get("type").toString()) != null) {
-			return 3;
-		}
-		String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
-		if (!check_name(name)) {
-			return 1;
+		if (groupinfo.containsKey("name")) {
+			String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
+			if (!check_name(name)) {
+				return 1;
+			}
 		}
 		return dbcontent.eq("_id", new ObjectId(ogid)).data(groupinfo)
 				.update() != null ? 0 : 99;
@@ -240,6 +238,18 @@ public class ContentGroupModel {
 			list.add(obj.get("$oid").toString());
 		}
 		return list;
+	}
+
+	// 获取栏目id及名称
+	@SuppressWarnings("unchecked")
+	public List<JSONObject> getName(List<JSONObject> list, JSONObject object) {
+		JSONObject obj = new JSONObject();
+		JSONObject objID = (JSONObject) object.get("_id");
+		obj.put("_id", objID.get("$oid").toString());
+		obj.put("name", object.get("name").toString());
+		list.add(obj);
+		return list;
+
 	}
 
 	/**

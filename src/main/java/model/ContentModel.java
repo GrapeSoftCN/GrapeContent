@@ -2,6 +2,7 @@ package model;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -10,6 +11,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import esayhelper.DBHelper;
+import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
@@ -21,7 +23,7 @@ public class ContentModel {
 	private static DBHelper dbcontent;
 	private static formHelper _form;
 	private JSONObject _obj = new JSONObject();
-	
+
 	static {
 		dbcontent = new DBHelper("mongodb", "content");
 		_form = dbcontent.getChecker();
@@ -51,6 +53,11 @@ public class ContentModel {
 		if (!content.get("fatherid").toString().equals("0")) {
 			content.remove("ogid");
 		}
+		if (content.containsKey("image")) {
+			if (content.get("image").toString().contains(":")) {
+				content.put("image", getimage(content));
+			}
+		}
 		return dbcontent.data(content).insertOnce() != null ? 0 : 99;
 	}
 
@@ -63,7 +70,16 @@ public class ContentModel {
 		if (content.containsKey("_id")) {
 			content.remove("_id");
 		}
-		return dbcontent.eq("_id", new ObjectId(oid)).data(content).update() != null ? 0 : 99;
+		if (content.containsKey("image")) {
+			String image = content.get("image").toString();
+			if (image.contains("upload")) {
+				if (image.contains(":")) {
+					content.put("image", getimage(content));
+				}
+			}
+		}
+		return dbcontent.eq("_id", new ObjectId(oid)).data(content)
+				.update() != null ? 0 : 99;
 	}
 
 	public int DeleteArticle(String oid) {
@@ -80,13 +96,15 @@ public class ContentModel {
 	 */
 	public int deleteByOgID(String oid, String ogid) {
 		// 查询oid对应的文章
-		JSONObject _obj = (JSONObject) dbcontent.eq("_id", new ObjectId(oid)).select().get(0);
+		JSONObject _obj = (JSONObject) dbcontent.eq("_id", new ObjectId(oid))
+				.select().get(0);
 		// 获取栏目id
 		String values = _obj.get("ogid").toString();
 		values = values.replace(ogid, "");
 		JSONObject obj = new JSONObject();
 		obj.put("ogid", values);
-		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null
+				? 0 : 99;
 	}
 
 	/**
@@ -100,7 +118,8 @@ public class ContentModel {
 	 */
 	public int deleteByWbID(String oid, String wbid) {
 		// 查询oid对应的文章
-		JSONObject _obj = (JSONObject) dbcontent.eq("_id", new ObjectId(oid)).select().get(0);
+		JSONObject _obj = (JSONObject) dbcontent.eq("_id", new ObjectId(oid))
+				.select().get(0);
 		// 获取站点id
 		String values = _obj.get("wbid").toString();
 		values = values.replace(wbid, "");
@@ -110,7 +129,8 @@ public class ContentModel {
 		// value, wbid), 1));
 		JSONObject obj = new JSONObject();
 		obj.put("wbid", values);
-		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null
+				? 0 : 99;
 	}
 
 	/**
@@ -132,7 +152,8 @@ public class ContentModel {
 		String values = StringHelper.join(ArraysUtil.append(value, ogid));
 		JSONObject obj = new JSONObject();
 		obj.put("ogid", values);
-		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(oid)).data(obj).update() != null
+				? 0 : 99;
 	}
 
 	public int setGroup(String ogid) {
@@ -144,65 +165,83 @@ public class ContentModel {
 			for (int i = 0; i < len; i++) {
 				dbcontent.eq("ogid", value[i]);
 			}
-		}else{
+		} else {
 			dbcontent.eq("ogid", ogid);
 		}
-		return dbcontent.data(cont).updateAll()!=0?0:99;
+		return dbcontent.data(cont).updateAll() != 0 ? 0 : 99;
 	}
 
 	public JSONObject page(int idx, int pageSize) {
 		JSONArray array = dbcontent.page(idx, pageSize);
 		JSONObject object = new JSONObject();
-		object.put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
+		object.put("totalSize",
+				(int) Math.ceil((double) dbcontent.count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
-		object.put("data", array);
+		object.put("data", getImg(array));
 		return object;
 	}
 
 	public JSONObject page(int idx, int pageSize, JSONObject content) {
-		for (Object object2 : content.keySet()) {
-			if (content.containsKey("_id")) {
-				dbcontent.eq("_id", new ObjectId(content.get("_id").toString()));
-			}
-			dbcontent.eq(object2.toString(), content.get(object2.toString()));
-		}
-		JSONArray array = dbcontent.page(idx, pageSize);
+		JSONArray array = getdb(content).page(idx, pageSize);
 		JSONObject object = new JSONObject();
-		object.put("totalSize", (int) Math.ceil((double) dbcontent.count() / pageSize));
+		object.put("totalSize",
+				(int) Math.ceil((double) getdb(content).count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
-		object.put("data", array);
+		object.put("data", getImg(array));
 		return object;
 	}
 
+	private DBHelper getdb(JSONObject content) {
+		for (Object object2 : content.keySet()) {
+			if (content.containsKey("_id")) {
+				dbcontent.eq("_id",
+						new ObjectId(content.get("_id").toString()));
+			}
+			dbcontent.like(object2.toString(), content.get(object2.toString()));
+		}
+		return dbcontent;
+	}
+
 	public JSONObject select(String oid) {
+		if (oid == null) {
+			return null;
+		}
 		JSONObject object = dbcontent.eq("_id", new ObjectId(oid)).find();
-		return object;
+		JSONObject preobj = find(object.get("time").toString(), "<");
+		JSONObject nextobj = find(object.get("time").toString(), ">");
+		object.put("previd", getpnArticle(preobj).get("id"));
+		object.put("prevname", getpnArticle(preobj).get("name"));
+		object.put("nextid", getpnArticle(nextobj).get("id"));
+		object.put("nextname", getpnArticle(nextobj).get("name"));
+		return getImg(object);
 	}
 
 	public JSONObject findnew() {
 		JSONObject object = dbcontent.desc("time").desc("_id").find();
-		return object;
+		return getImg(object);
 	}
 
 	public JSONArray searchByUid(String uid) {
 		JSONArray array = dbcontent.eq("ownid", uid).limit(30).select();
-		return array;
+		return getImg(array);
 	}
 
 	public int updatesort(String oid, int sortNo) {
 		JSONObject object = new JSONObject();
 		object.put("sort", sortNo);
-		return dbcontent.eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(oid)).data(object)
+				.update() != null ? 0 : 99;
 	}
 
 	public JSONArray search(JSONObject condString) {
 		for (Object object2 : condString.keySet()) {
-			dbcontent.eq(object2.toString(), condString.get(object2.toString()));
+			dbcontent.like(object2.toString(),
+					condString.get(object2.toString()));
 		}
 		JSONArray array = dbcontent.limit(30).select();
-		return array;
+		return getImg(array);
 	}
 
 	// 获取积分价值条件？？
@@ -210,22 +249,31 @@ public class ContentModel {
 		dbcontent.field("point").limit(20).select();
 	}
 
+	// 根据文章id查询文章
+	public JSONObject findByOid(String oid) {
+		JSONObject object = dbcontent.eq("_id", new ObjectId(oid)).find();
+		return getImg(object);
+	}
+
 	// 根据栏目id查询文章
 	public JSONArray findByGroupID(String ogid) {
-		JSONArray array = dbcontent.desc("time").eq("ogid", ogid).limit(20).select();
-		return array;
+		JSONArray array = dbcontent.desc("time").eq("ogid", ogid).limit(20)
+				.select();
+		return getImg(array);
 	}
 
 	public JSONArray findByGroupID(String ogid, int no) {
 		// 通过模糊查询，查询出该ogid对应的文章
-		return dbcontent.eq("ogid", ogid).limit(no).select();
+		JSONArray array = dbcontent.eq("ogid", ogid).limit(no).select();
+		return getImg(array);
 	}
 
 	// 修改tempid
 	public int setTempId(String oid, String tempid) {
 		JSONObject object = new JSONObject();
 		object.put("tempid", tempid);
-		return dbcontent.eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(oid)).data(object)
+				.update() != null ? 0 : 99;
 	}
 
 	// 修改fatherid，同时删除ogid（ogid=""）
@@ -237,14 +285,16 @@ public class ContentModel {
 			object.put("ogid", "");
 		}
 		object.put("fatherid", fatherid);
-		return dbcontent.eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(oid)).data(object)
+				.update() != null ? 0 : 99;
 	}
 
 	// 修改对象密级
 	public int setslevel(String oid, String slevel) {
 		JSONObject object = new JSONObject();
 		object.put("tempid", slevel);
-		return dbcontent.eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(oid)).data(object)
+				.update() != null ? 0 : 99;
 	}
 
 	// 文章审核 state：0 草稿，1 待审核，2 审核通过 3 审核不通过
@@ -252,7 +302,35 @@ public class ContentModel {
 		JSONObject object = new JSONObject();
 		object.put("manageid", managerid);
 		object.put("state", state);
-		return dbcontent.eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		return dbcontent.eq("_id", new ObjectId(oid)).data(object)
+				.update() != null ? 0 : 99;
+	}
+
+	// 获取图片内容
+	private JSONObject getImg(JSONObject object) {
+		String imgURL = object.get("image").toString();
+		if (imgURL.contains("File")) {
+			imgURL = "http://123.57.214.226:8080" + imgURL;
+			object.put("image", imgURL);
+		}
+		return object;
+	}
+
+	private JSONArray getImg(JSONArray array) {
+		JSONArray array2 = new JSONArray();
+		for (int i = 0, len = array.size(); i < len; i++) {
+			JSONObject object = (JSONObject) array.get(i);
+			if (object.containsKey("image")) {
+				String imgURL = object.get("image").toString();
+				if (imgURL.contains("upload")) {
+					imgURL = "http://123.57.214.226:8080" + imgURL;
+					object.put("image", imgURL);
+				}
+			}
+			array2.add(object);
+		}
+
+		return array2;
 	}
 
 	public int delete(String[] arr) {
@@ -263,9 +341,60 @@ public class ContentModel {
 		return dbcontent.deleteAll() == arr.length ? 0 : 99;
 	}
 
-	public JSONArray find(String ogid,int no) {
-		JSONArray array = dbcontent.eq("ogid", ogid).limit(no).field("image,desp").select();
+	public JSONArray find(String ogid, int no) {
+		JSONArray array = dbcontent.eq("ogid", ogid).limit(no)
+				.field("image,desp").select();
 		return array;
+	}
+	public JSONArray find(String[] ogid, int no) {
+		dbcontent.or();
+		for (int i = 0; i < ogid.length; i++) {
+			dbcontent.eq("ogid", ogid[i]);
+		}
+		return dbcontent.limit(no).select();
+	}
+
+	public JSONObject find(String time, String logic) {
+		if (time.contains("$numberLong")) {
+			JSONObject object = JSONHelper.string2json(time);
+			time = object.get("$numberLong").toString();
+		}
+		if (logic == "<") {
+			dbcontent.lt("time", time).desc("time");
+		} else {
+			dbcontent.gt("time", time).asc("time");
+		}
+		return dbcontent.find();
+	}
+
+	private JSONObject getpnArticle(JSONObject object) {
+		String id = null;
+		String name = null;
+		JSONObject object2 = new JSONObject();
+		if (object != null) {
+			JSONObject obj = (JSONObject) object.get("_id");
+			id = obj.get("$oid").toString();
+			name = object.get("mainName").toString();
+			object2.put("id", id);
+			object2.put("name", name);
+		}
+		return object2;
+	}
+
+	private String getimage(JSONObject object) {
+		String image = object.get("image").toString();
+		return "\\File" + image.split("File")[1];
+	}
+
+	//获取栏目id及名称
+	public List<JSONObject> getName(List<JSONObject> list, JSONObject object) {
+		JSONObject obj = new JSONObject();
+		JSONObject objID = (JSONObject) object.get("_id");
+ 		obj.put("_id", objID.get("$oid").toString());
+		obj.put("name", object.get("name").toString());
+		list.add(obj);
+		return list;
+
 	}
 
 	public String showstate(String state) {
@@ -296,9 +425,11 @@ public class ContentModel {
 	 */
 	public JSONObject AddMap(HashMap<String, Object> map, JSONObject object) {
 		if (map.entrySet() != null) {
-			Iterator<Entry<String, Object>> iterator = map.entrySet().iterator();
+			Iterator<Entry<String, Object>> iterator = map.entrySet()
+					.iterator();
 			while (iterator.hasNext()) {
-				Map.Entry<String, Object> entry = (Map.Entry<String, Object>) iterator.next();
+				Map.Entry<String, Object> entry = (Map.Entry<String, Object>) iterator
+						.next();
 				if (!object.containsKey(entry.getKey())) {
 					object.put(entry.getKey(), entry.getValue());
 				}
@@ -311,10 +442,12 @@ public class ContentModel {
 		_obj.put("records", object);
 		return resultMessage(0, _obj.toString());
 	}
+
 	public String resultMessage(JSONArray array) {
 		_obj.put("records", array);
 		return resultMessage(0, _obj.toString());
 	}
+
 	public String resultMessage(int num, String msg) {
 		String message = null;
 		switch (num) {

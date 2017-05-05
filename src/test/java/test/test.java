@@ -4,6 +4,7 @@ import httpServer.booter;
 import interfaceApplication.Content;
 import interfaceApplication.ContentGroup;
 import model.ContentGroupModel;
+import model.ContentModel;
 
 public class test {
 	public static void main(String[] args) {
