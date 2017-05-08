@@ -17,6 +17,7 @@ import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
 import esayhelper.formHelper.formdef;
 import jodd.util.ArraysUtil;
+import rpc.execRequest;
 
 @SuppressWarnings("unchecked")
 public class ContentModel {
@@ -25,7 +26,7 @@ public class ContentModel {
 	private JSONObject _obj = new JSONObject();
 
 	static {
-		dbcontent = new DBHelper("mongodb", "content");
+		dbcontent = new DBHelper("mongodb", "objectList");
 		_form = dbcontent.getChecker();
 	}
 
@@ -259,7 +260,8 @@ public class ContentModel {
 	public JSONArray findByGroupID(String ogid) {
 		JSONArray array = dbcontent.desc("time").eq("ogid", ogid).limit(20)
 				.select();
-		return getImg(array);
+		array = getImg(array);
+		return join(array);
 	}
 
 	public JSONArray findByGroupID(String ogid, int no) {
@@ -397,6 +399,23 @@ public class ContentModel {
 
 	}
 
+	private JSONArray join(JSONArray array) {
+		JSONArray arrays = new JSONArray();
+		for (int i = 0, len = array.size(); i < len; i++) {
+			JSONObject object = (JSONObject) array.get(i);
+			if (object.get("tempid").toString().equals("0")) {
+				object.put("tempContent", null);
+			} else {
+				String temp = execRequest
+						._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+								+ object.get("tempid").toString(), null)
+						.toString();
+				object.put("tempContent", temp);
+			}
+			arrays.add(object);
+		}
+		return arrays;
+	}
 	public String showstate(String state) {
 		String msg = "";
 		switch (state) {

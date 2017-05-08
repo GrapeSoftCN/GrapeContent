@@ -24,7 +24,7 @@ public class ContentGroupModel {
 	private JSONObject _obj = new JSONObject();
 
 	static {
-		dbcontent = new DBHelper("mongodb", "type");
+		dbcontent = new DBHelper("mongodb", "objectGroup");
 		_form = dbcontent.getChecker();
 	}
 
@@ -44,35 +44,6 @@ public class ContentGroupModel {
 	public JSONArray findByType(String type, int no) {
 		JSONArray array = dbcontent.eq("type", type).limit(no).select();
 		return join(array);
-	}
-
-	// 获取模版id，合并到jsonarray
-	@SuppressWarnings("unchecked")
-	private JSONArray join(JSONArray array) {
-		JSONArray arrays = new JSONArray();
-		for (int i = 0, len = array.size(); i < len; i++) {
-			JSONObject object = (JSONObject) array.get(i);
-			if (object.get("tempContent").toString().equals("0")) {
-				object.put("tempContent", null);
-			} else {
-				String temp = execRequest
-						._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
-								+ object.get("tempContent").toString(), null)
-						.toString();
-				object.put("tempContent", temp);
-			}
-			if (object.get("tempList").toString().equals("0")) {
-				object.put("tempList", null);
-			} else {
-				String temp = execRequest
-						._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
-								+ object.get("tempList").toString(), null)
-						.toString();
-				object.put("tempList", temp);
-			}
-			arrays.add(object);
-		}
-		return arrays;
 	}
 
 	/**
@@ -135,7 +106,7 @@ public class ContentGroupModel {
 				(int) Math.ceil((double) dbcontent.count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
-		object.put("data", array);
+		object.put("data", join(array));
 		return object;
 	}
 
@@ -154,7 +125,7 @@ public class ContentGroupModel {
 				(int) Math.ceil((double) dbcontent.count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
-		object.put("data", array);
+		object.put("data", join(array));
 		return object;
 	}
 
@@ -251,6 +222,35 @@ public class ContentGroupModel {
 		return list;
 
 	}
+
+	// 获取模版id，合并到jsonarray
+		@SuppressWarnings("unchecked")
+		private JSONArray join(JSONArray array) {
+			JSONArray arrays = new JSONArray();
+			for (int i = 0, len = array.size(); i < len; i++) {
+				JSONObject object = (JSONObject) array.get(i);
+				if (object.get("tempContent").toString().equals("0")) {
+					object.put("tempContent", null);
+				} else {
+					String temp = execRequest
+							._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+									+ object.get("tempContent").toString(), null)
+							.toString();
+					object.put("tempContent", temp);
+				}
+				if (object.get("tempList").toString().equals("0")) {
+					object.put("tempList", null);
+				} else {
+					String temp = execRequest
+							._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+									+ object.get("tempList").toString(), null)
+							.toString();
+					object.put("tempList", temp);
+				}
+				arrays.add(object);
+			}
+			return arrays;
+		}
 
 	/**
 	 * 将map添加至JSONObject中

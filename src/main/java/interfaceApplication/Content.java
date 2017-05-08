@@ -43,6 +43,7 @@ public class Content {
 		defmap.put("slevel", 0);
 		defmap.put("readCount", 0);
 		defmap.put("thirdsdkid", "");
+		defmap.put("tempid", 0);
 		defmap.put("uplv", 2000);
 		defmap.put("rplv", 1000);
 		defmap.put("dplv", 3000);
@@ -163,6 +164,7 @@ public class Content {
 	 * @return
 	 */
 	public String Page(int idx, int pageSize) {
+		System.out.println(execRequest.getChannelValue("GrapeSID"));
 		return content.resultMessage(content.page(idx, pageSize));
 	}
 
@@ -203,11 +205,6 @@ public class Content {
 				"排序值修改成功");
 	}
 
-	// 统计总阅读量(条件？？）
-	public String CountRead() {
-		return null;
-	}
-
 	/**
 	 * 发布文章
 	 * 
@@ -222,10 +219,6 @@ public class Content {
 		// return content.resultMessage(7, "没有新增权限");
 		// }
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
-		// 获取当前站点
-		// String wbid =
-		// JSONHelper.string2json(info).get("currentWeb").toString();
-		// object = getwbid(wbid, object);
 		object = content.AddMap(defmap, JSONHelper.string2json(ArticleInfo));
 		object.put("content", encode(object.get("content").toString()));
 		return content.resultMessage(content.insert(object), "文章发布成功");
@@ -362,6 +355,7 @@ public class Content {
 		return content.resultMessage(content.find(ids.split(","), no));
 	}
 
+	//获取文章id
 	public String getID(JSONArray array) {
 		List<String> list = new ArrayList<>();
 		for (int i = 0, len = array.size(); i < len; i++) {
