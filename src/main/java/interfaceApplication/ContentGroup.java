@@ -26,7 +26,8 @@ public class ContentGroup {
 		defcol.put("sort", 0);
 		defcol.put("isvisble", 0);
 		defcol.put("slevel", 0);
-		defcol.put("tempid", 0);
+		defcol.put("tempContent", 0);
+		defcol.put("tempList", 0);
 		defcol.put("uplv", 2000);
 		defcol.put("rplv", 1000);
 		defcol.put("dplv", 3000);

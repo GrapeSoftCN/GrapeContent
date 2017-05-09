@@ -8,13 +8,13 @@ import model.ContentModel;
 
 public class test {
 	public static void main(String[] args) {
-//		 booter booter = new booter();
-//		 try {
-//		 System.out.println("GrapeContent!");
-//		 System.setProperty("AppName", "GrapeContent");
-//		 booter.start(1003);
-//		} catch (Exception e) {
-//		}
+		 booter booter = new booter();
+		 try {
+		 System.out.println("GrapeContent!");
+		 System.setProperty("AppName", "GrapeContent");
+		 booter.start(1003);
+		} catch (Exception e) {
+		}
 		//// System.out.println(new
 		// Content().getImgs("58f75b0c1a4769cbf53bc310", 7));
 		// System.out.println(new
@@ -23,6 +23,6 @@ public class test {
 //		System.out.println(new Content().EditArticle("58f8890cc6c2040bbccd692b",
 //				contents));
 		
-		System.out.println(new Content().ShowByGroupId("58f62de01a4769cbf53908ae"));
+//		System.out.println(new Content().ShowByGroupId("58f62de01a4769cbf53908ae"));
 	}
 }

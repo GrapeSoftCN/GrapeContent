@@ -11,6 +11,7 @@ import java.util.List;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import apps.appsProxy;
 import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import esayhelper.TimeHelper;
@@ -164,7 +165,7 @@ public class Content {
 	 * @return
 	 */
 	public String Page(int idx, int pageSize) {
-		System.out.println(execRequest.getChannelValue("GrapeSID"));
+		// System.out.println(execRequest.getChannelValue("GrapeSID"));
 		return content.resultMessage(content.page(idx, pageSize));
 	}
 
@@ -320,17 +321,25 @@ public class Content {
 				.toString();
 		String ogid = JSONHelper.string2json(records).get("ogid").toString();
 		// 根据栏目id查询栏目信息
-		String prevCol = execRequest
-				._run("GrapeContent/ContentGroup/getPrevCol/s:" + ogid, null)
+		// String prevCol = execRequest
+		// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + ogid, null)
+		// .toString();
+		String prevCol = appsProxy
+				.proxyCall("192.168.3.141:1003",
+						"13/15/ContentGroup/getPrevCol/s:" + ogid, null, "")
 				.toString();
 		String fatherid = JSONHelper.string2json(prevCol).get("fatherid")
 				.toString();
 		list = content.getName(list, JSONHelper.string2json(prevCol));
 		// 根据fatherid获取上一级栏目，直到fatherid=0
 		while (!"0".equals(fatherid)) {
-			prevCol = execRequest
-					._run("GrapeContent/ContentGroup/getPrevCol/s:" + fatherid,
-							null)
+			// prevCol = execRequest
+			// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + fatherid,
+			// null)
+			// .toString();
+			prevCol = appsProxy
+					.proxyCall("192.168.3.141:1003",
+							"13/15/ContentGroup/getPrevCol/s:" + ogid, null, "")
 					.toString();
 			fatherid = JSONHelper.string2json(prevCol).get("fatherid")
 					.toString();
@@ -342,10 +351,14 @@ public class Content {
 
 	// 获取下级栏目的文章
 	public String getContent(String ogid, int no) {
-		String tips = execRequest
-				._run("GrapeContent/ContentGroup/getColumnByFid/s:" + ogid,
-						null)
+		String tips = appsProxy
+				.proxyCall("192.168.3.141:1003",
+						"13/15/ContentGroup/getColumnByFid/s:" + ogid, null, "")
 				.toString();
+		// execRequest
+		// ._run("GrapeContent/ContentGroup/getColumnByFid/s:" + ogid,
+		// null)
+		// .toString();
 		String message = JSONHelper.string2json(tips).get("message").toString();
 		String records = JSONHelper.string2json(message).get("records")
 				.toString();
@@ -355,7 +368,7 @@ public class Content {
 		return content.resultMessage(content.find(ids.split(","), no));
 	}
 
-	//获取文章id
+	// 获取文章id
 	public String getID(JSONArray array) {
 		List<String> list = new ArrayList<>();
 		for (int i = 0, len = array.size(); i < len; i++) {
