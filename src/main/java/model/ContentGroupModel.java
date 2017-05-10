@@ -12,11 +12,11 @@ import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import apps.appsProxy;
 import esayhelper.DBHelper;
 import esayhelper.JSONHelper;
 import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
-import rpc.execRequest;
 
 public class ContentGroupModel {
 	private static formHelper _form;
@@ -24,7 +24,9 @@ public class ContentGroupModel {
 	private JSONObject _obj = new JSONObject();
 
 	static {
-		dbcontent = new DBHelper("mongodb", "objectGroup");
+//		dbcontent = new DBHelper(appsProxy.configValue().get("db").toString(),
+//				"objectGroup");
+		 dbcontent = new DBHelper("mongodb", "objectGroup");
 		_form = dbcontent.getChecker();
 	}
 
@@ -41,9 +43,9 @@ public class ContentGroupModel {
 	}
 
 	// 根据类型查询栏目，指定数量
-	public JSONArray findByType(String type, int no) {
+	public String findByType(String type, int no) {
 		JSONArray array = dbcontent.eq("type", type).limit(no).select();
-		return join(array);
+		return resultMessage(join(array));
 	}
 
 	/**
@@ -65,7 +67,7 @@ public class ContentGroupModel {
 			return resultMessage(3, "");
 		}
 		String info = dbcontent.data(groupinfo).insertOnce().toString();
-		return find(info).toString();
+		return resultMessage(find(info));
 	}
 
 	public int UpdateGroup(String ogid, JSONObject groupinfo) {
@@ -93,13 +95,16 @@ public class ContentGroupModel {
 		JSONObject object = JSONHelper.string2json(contentInfo);
 		Set<Object> set = object.keySet();
 		for (Object object2 : set) {
+			if ("_id".equals(object2.toString())) {
+				dbcontent.eq("_id", new ObjectId(object.get("_id").toString()));
+			}
 			dbcontent.eq(object2.toString(), object.get(object2.toString()));
 		}
 		return dbcontent.limit(20).select();
 	}
 
 	@SuppressWarnings("unchecked")
-	public JSONObject page(int idx, int pageSize) {
+	public String page(int idx, int pageSize) {
 		JSONArray array = dbcontent.page(idx, pageSize);
 		JSONObject object = new JSONObject();
 		object.put("totalSize",
@@ -107,11 +112,11 @@ public class ContentGroupModel {
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
 		object.put("data", join(array));
-		return object;
+		return resultMessage(object);
 	}
 
 	@SuppressWarnings("unchecked")
-	public JSONObject page(int idx, int pageSize, JSONObject GroupInfo) {
+	public String page(int idx, int pageSize, JSONObject GroupInfo) {
 		for (Object object2 : GroupInfo.keySet()) {
 			if (GroupInfo.containsKey("_id")) {
 				dbcontent.eq("_id",
@@ -119,14 +124,14 @@ public class ContentGroupModel {
 			}
 			dbcontent.eq(object2.toString(), GroupInfo.get(object2.toString()));
 		}
-		JSONArray array = dbcontent.page(idx, pageSize);
+		JSONArray array = dbcontent.dirty().page(idx, pageSize);
 		JSONObject object = new JSONObject();
 		object.put("totalSize",
 				(int) Math.ceil((double) dbcontent.count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
 		object.put("data", join(array));
-		return object;
+		return resultMessage(object);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -183,8 +188,8 @@ public class ContentGroupModel {
 		return name;
 	}
 
-	public JSONArray getColumnByFid(String ogid) {
-		return dbcontent.eq("fatherid", ogid).select();
+	public String getColumnByFid(String ogid) {
+		return resultMessage(dbcontent.eq("fatherid", ogid).select());
 	}
 
 	// 获取所有子栏目的id
@@ -224,33 +229,41 @@ public class ContentGroupModel {
 	}
 
 	// 获取模版id，合并到jsonarray
-		@SuppressWarnings("unchecked")
-		private JSONArray join(JSONArray array) {
-			JSONArray arrays = new JSONArray();
-			for (int i = 0, len = array.size(); i < len; i++) {
-				JSONObject object = (JSONObject) array.get(i);
-				if (object.get("tempContent").toString().equals("0")) {
-					object.put("tempContent", null);
-				} else {
-					String temp = execRequest
-							._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
-									+ object.get("tempContent").toString(), null)
-							.toString();
-					object.put("tempContent", temp);
-				}
-				if (object.get("tempList").toString().equals("0")) {
-					object.put("tempList", null);
-				} else {
-					String temp = execRequest
-							._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
-									+ object.get("tempList").toString(), null)
-							.toString();
-					object.put("tempList", temp);
-				}
-				arrays.add(object);
+	@SuppressWarnings("unchecked")
+	private JSONArray join(JSONArray array) {
+		JSONArray arrays = new JSONArray();
+		for (int i = 0, len = array.size(); i < len; i++) {
+			JSONObject object = (JSONObject) array.get(i);
+			if (object.get("tempContent").toString().equals("0")) {
+				object.put("tempContent", null);
+			} else {
+				// String temp = execRequest
+				// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+				// + object.get("tempContent").toString(), null)
+				// .toString();
+				String temp = appsProxy.proxyCall("123.57.214.226:801",
+						"19/TemplateContext/TempFindByTid/s:"
+								+ object.get("tempContent").toString(),
+						null, "").toString();
+				object.put("tempContent", temp);
 			}
-			return arrays;
+			if (object.get("tempList").toString().equals("0")) {
+				object.put("tempList", null);
+			} else {
+				// String temp = execRequest
+				// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+				// + object.get("tempList").toString(), null)
+				// .toString();
+				String temp = appsProxy.proxyCall("123.57.214.226:801",
+						"19/TemplateContext/TempFindByTid/s:"
+								+ object.get("tempList").toString(),
+						null, "").toString();
+				object.put("tempList", temp);
+			}
+			arrays.add(object);
 		}
+		return arrays;
+	}
 
 	/**
 	 * 将map添加至JSONObject中
@@ -276,13 +289,13 @@ public class ContentGroupModel {
 	}
 
 	@SuppressWarnings("unchecked")
-	public String resultMessage(JSONObject object) {
+	private String resultMessage(JSONObject object) {
 		_obj.put("records", object);
 		return resultMessage(0, _obj.toString());
 	}
 
 	@SuppressWarnings("unchecked")
-	public String resultMessage(JSONArray array) {
+	private String resultMessage(JSONArray array) {
 		_obj.put("records", array);
 		return resultMessage(0, _obj.toString());
 	}

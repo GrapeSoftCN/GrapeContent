@@ -3,7 +3,6 @@ package interfaceApplication;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -16,7 +15,6 @@ import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import esayhelper.TimeHelper;
 import model.ContentModel;
-import rpc.execRequest;
 
 @SuppressWarnings("unchecked")
 public class Content {
@@ -99,7 +97,7 @@ public class Content {
 	 * @return
 	 */
 	public String FindNewArc() {
-		return content.resultMessage(content.findnew());
+		return content.findnew();
 	}
 
 	/**
@@ -166,12 +164,11 @@ public class Content {
 	 */
 	public String Page(int idx, int pageSize) {
 		// System.out.println(execRequest.getChannelValue("GrapeSID"));
-		return content.resultMessage(content.page(idx, pageSize));
+		return content.page(idx, pageSize);
 	}
 
 	public String PageBy(int idx, int pageSize, String contents) {
-		return content.resultMessage(
-				content.page(idx, pageSize, JSONHelper.string2json(contents)));
+		return content.page(idx, pageSize, JSONHelper.string2json(contents));
 	}
 
 	/**
@@ -222,7 +219,7 @@ public class Content {
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
 		object = content.AddMap(defmap, JSONHelper.string2json(ArticleInfo));
 		object.put("content", encode(object.get("content").toString()));
-		return content.resultMessage(content.insert(object), "文章发布成功");
+		return content.resultMessage(0, content.insert(object));
 	}
 
 	// 编码
@@ -325,8 +322,8 @@ public class Content {
 		// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + ogid, null)
 		// .toString();
 		String prevCol = appsProxy
-				.proxyCall("192.168.3.141:1003",
-						"13/15/ContentGroup/getPrevCol/s:" + ogid, null, "")
+				.proxyCall("123.57.214.226:801",
+						"15/ContentGroup/getPrevCol/s:" + ogid, null, "")
 				.toString();
 		String fatherid = JSONHelper.string2json(prevCol).get("fatherid")
 				.toString();
@@ -338,8 +335,8 @@ public class Content {
 			// null)
 			// .toString();
 			prevCol = appsProxy
-					.proxyCall("192.168.3.141:1003",
-							"13/15/ContentGroup/getPrevCol/s:" + ogid, null, "")
+					.proxyCall("123.57.214.226:801",
+							"15/ContentGroup/getPrevCol/s:" + fatherid, null, "")
 					.toString();
 			fatherid = JSONHelper.string2json(prevCol).get("fatherid")
 					.toString();
@@ -352,8 +349,8 @@ public class Content {
 	// 获取下级栏目的文章
 	public String getContent(String ogid, int no) {
 		String tips = appsProxy
-				.proxyCall("192.168.3.141:1003",
-						"13/15/ContentGroup/getColumnByFid/s:" + ogid, null, "")
+				.proxyCall("123.57.214.226:801",
+						"15/ContentGroup/getColumnByFid/s:" + ogid, null, "")
 				.toString();
 		// execRequest
 		// ._run("GrapeContent/ContentGroup/getColumnByFid/s:" + ogid,
