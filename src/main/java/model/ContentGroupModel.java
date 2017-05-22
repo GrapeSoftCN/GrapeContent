@@ -13,6 +13,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import apps.appsProxy;
+import database.db;
 import esayhelper.DBHelper;
 import esayhelper.JSONHelper;
 import esayhelper.formHelper;
@@ -24,9 +25,8 @@ public class ContentGroupModel {
 	private JSONObject _obj = new JSONObject();
 
 	static {
-//		dbcontent = new DBHelper(appsProxy.configValue().get("db").toString(),
-//				"objectGroup");
-		 dbcontent = new DBHelper("mongodb", "objectGroup");
+		dbcontent = new DBHelper(appsProxy.configValue().get("db").toString(),
+				"objectGroup");
 		_form = dbcontent.getChecker();
 	}
 
@@ -37,14 +37,18 @@ public class ContentGroupModel {
 		_form.putRule("type", formHelper.formdef.notNull);
 	}
 
+	private db bind() {
+		return dbcontent.bind(appsProxy.appid() + "");
+	}
+
 	public JSONObject find_contentnamebyName(String name, String type) {
-		JSONObject object = dbcontent.eq("name", name).eq("type", type).find();
+		JSONObject object = bind().eq("name", name).eq("type", type).find();
 		return object;
 	}
 
 	// 根据类型查询栏目，指定数量
 	public String findByType(String type, int no) {
-		JSONArray array = dbcontent.eq("type", type).limit(no).select();
+		JSONArray array = bind().eq("type", type).limit(no).select();
 		return resultMessage(join(array));
 	}
 
@@ -66,7 +70,7 @@ public class ContentGroupModel {
 		if (find_contentnamebyName(name, type) != null) {
 			return resultMessage(3, "");
 		}
-		String info = dbcontent.data(groupinfo).insertOnce().toString();
+		String info = bind().data(groupinfo).insertOnce().toString();
 		return resultMessage(find(info));
 	}
 
@@ -77,17 +81,17 @@ public class ContentGroupModel {
 				return 1;
 			}
 		}
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(groupinfo)
+		return bind().eq("_id", new ObjectId(ogid)).data(groupinfo)
 				.update() != null ? 0 : 99;
 	}
 
 	public int DeleteGroup(String ogid) {
-		return dbcontent.eq("_id", new ObjectId(ogid)).delete() != null ? 0
+		return bind().eq("_id", new ObjectId(ogid)).delete() != null ? 0
 				: 99;
 	}
 
 	public JSONObject find(String ogid) {
-		return dbcontent.eq("_id", new ObjectId(ogid)).find();
+		return join(bind().eq("_id", new ObjectId(ogid)).find());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -96,19 +100,19 @@ public class ContentGroupModel {
 		Set<Object> set = object.keySet();
 		for (Object object2 : set) {
 			if ("_id".equals(object2.toString())) {
-				dbcontent.eq("_id", new ObjectId(object.get("_id").toString()));
+				bind().eq("_id", new ObjectId(object.get("_id").toString()));
 			}
-			dbcontent.eq(object2.toString(), object.get(object2.toString()));
+			bind().eq(object2.toString(), object.get(object2.toString()));
 		}
-		return dbcontent.limit(20).select();
+		return bind().limit(20).select();
 	}
 
 	@SuppressWarnings("unchecked")
 	public String page(int idx, int pageSize) {
-		JSONArray array = dbcontent.page(idx, pageSize);
+		JSONArray array = bind().page(idx, pageSize);
 		JSONObject object = new JSONObject();
 		object.put("totalSize",
-				(int) Math.ceil((double) dbcontent.count() / pageSize));
+				(int) Math.ceil((double) bind().count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
 		object.put("data", join(array));
@@ -119,15 +123,15 @@ public class ContentGroupModel {
 	public String page(int idx, int pageSize, JSONObject GroupInfo) {
 		for (Object object2 : GroupInfo.keySet()) {
 			if (GroupInfo.containsKey("_id")) {
-				dbcontent.eq("_id",
+				bind().eq("_id",
 						new ObjectId(GroupInfo.get("_id").toString()));
 			}
-			dbcontent.eq(object2.toString(), GroupInfo.get(object2.toString()));
+			bind().eq(object2.toString(), GroupInfo.get(object2.toString()));
 		}
-		JSONArray array = dbcontent.dirty().page(idx, pageSize);
+		JSONArray array = bind().dirty().page(idx, pageSize);
 		JSONObject object = new JSONObject();
 		object.put("totalSize",
-				(int) Math.ceil((double) dbcontent.count() / pageSize));
+				(int) Math.ceil((double) bind().count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
 		object.put("data", join(array));
@@ -138,7 +142,7 @@ public class ContentGroupModel {
 	public int setfatherid(String ogid, int fatherid) {
 		JSONObject object = new JSONObject();
 		object.put("fatherid", fatherid);
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(object)
+		return bind().eq("_id", new ObjectId(ogid)).data(object)
 				.update() != null ? 0 : 99;
 	}
 
@@ -146,7 +150,7 @@ public class ContentGroupModel {
 	public int setsort(String ogid, int num) {
 		JSONObject object = new JSONObject();
 		object.put("sort", num);
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(object)
+		return bind().eq("_id", new ObjectId(ogid)).data(object)
 				.update() != null ? 0 : 99;
 	}
 
@@ -154,7 +158,7 @@ public class ContentGroupModel {
 	public int setTempId(String ogid, String tempid) {
 		JSONObject object = new JSONObject();
 		object.put("tempid", tempid);
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(object)
+		return bind().eq("_id", new ObjectId(ogid)).data(object)
 				.update() != null ? 0 : 99;
 	}
 
@@ -162,16 +166,16 @@ public class ContentGroupModel {
 	public int setslevel(String ogid, int slevel) {
 		JSONObject object = new JSONObject();
 		object.put("slevel", slevel);
-		return dbcontent.eq("_id", new ObjectId(ogid)).data(object)
+		return bind().eq("_id", new ObjectId(ogid)).data(object)
 				.update() != null ? 0 : 99;
 	}
 
 	public int delete(String[] arr) {
-		dbcontent.or();
+		bind().or();
 		for (int i = 0; i < arr.length; i++) {
-			dbcontent.eq("_id", new ObjectId(arr[i]));
+			bind().eq("_id", new ObjectId(arr[i]));
 		}
-		return dbcontent.deleteAll() == arr.length ? 0 : 99;
+		return bind().deleteAll() == arr.length ? 0 : 99;
 	}
 
 	public boolean check_name(String name) {
@@ -180,7 +184,7 @@ public class ContentGroupModel {
 
 	public String findByFatherid(String fatherid) {
 		String name = null;
-		JSONArray array = dbcontent.eq("fatherid", fatherid).select();
+		JSONArray array = bind().eq("fatherid", fatherid).select();
 		for (Object object : array) {
 			JSONObject _obj = (JSONObject) object;
 			name = _obj.get("name").toString();
@@ -189,21 +193,21 @@ public class ContentGroupModel {
 	}
 
 	public String getColumnByFid(String ogid) {
-		return resultMessage(dbcontent.eq("fatherid", ogid).select());
+		return resultMessage(bind().eq("fatherid", ogid).select());
 	}
 
 	// 获取所有子栏目的id
 	public JSONArray getColumn(String ogid) {
 		if (ogid.contains(",")) {
-			dbcontent.or();
+			bind().or();
 			String[] value = ogid.split(",");
 			for (int i = 0, len = value.length; i < len; i++) {
-				dbcontent.eq("fatherid", value[i]);
+				bind().eq("fatherid", value[i]);
 			}
 		} else {
-			dbcontent.eq("fatherid", ogid);
+			bind().eq("fatherid", ogid);
 		}
-		return dbcontent.field("_id").limit(20).select();
+		return bind().field("_id").limit(20).select();
 	}
 
 	public List<String> getList(JSONArray array) {
@@ -242,7 +246,8 @@ public class ContentGroupModel {
 				// + object.get("tempContent").toString(), null)
 				// .toString();
 				String temp = appsProxy.proxyCall("123.57.214.226:801",
-						"19/TemplateContext/TempFindByTid/s:"
+						String.valueOf(appsProxy.appid())
+								+ "/19/TemplateContext/TempFindByTid/s:"
 								+ object.get("tempContent").toString(),
 						null, "").toString();
 				object.put("tempContent", temp);
@@ -255,7 +260,8 @@ public class ContentGroupModel {
 				// + object.get("tempList").toString(), null)
 				// .toString();
 				String temp = appsProxy.proxyCall("123.57.214.226:801",
-						"19/TemplateContext/TempFindByTid/s:"
+						String.valueOf(appsProxy.appid())
+								+ "/19/TemplateContext/TempFindByTid/s:"
 								+ object.get("tempList").toString(),
 						null, "").toString();
 				object.put("tempList", temp);
@@ -263,6 +269,38 @@ public class ContentGroupModel {
 			arrays.add(object);
 		}
 		return arrays;
+	}
+
+	// 获取模版id，合并到jsonarray
+	@SuppressWarnings("unchecked")
+	private JSONObject join(JSONObject object) {
+		if (object.get("tempContent").toString().equals("0")) {
+			object.put("tempContent", null);
+		} else {
+			// String temp = execRequest
+			// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+			// + object.get("tempContent").toString(), null)
+			// .toString();
+			String temp = appsProxy.proxyCall("123.57.214.226:801",
+					appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:"
+							+ object.get("tempContent").toString(),
+					null, "").toString();
+			object.put("tempContent", temp);
+		}
+		if (object.get("tempList").toString().equals("0")) {
+			object.put("tempList", null);
+		} else {
+			// String temp = execRequest
+			// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+			// + object.get("tempList").toString(), null)
+			// .toString();
+			String temp = appsProxy.proxyCall("123.57.214.226:801",
+					appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:"
+							+ object.get("tempList").toString(),
+					null, "").toString();
+			object.put("tempList", temp);
+		}
+		return object;
 	}
 
 	/**

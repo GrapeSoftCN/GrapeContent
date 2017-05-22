@@ -83,7 +83,7 @@ public class ContentGroup {
 		// execRequest._run("GrapeContent/content/SetGroupBatch/s:"
 		// + StringHelper.join(list), null).toString();
 		String tips = appsProxy.proxyCall("123.57.214.226:801",
-				"15/content/SetGroupBatch/s:" + StringHelper.join(list), null,
+				String.valueOf(appsProxy.appid())+"/15/content/SetGroupBatch/s:" + StringHelper.join(list), null,
 				"").toString();
 		long code = (long) JSONHelper.string2json(tips).get("errorcode");
 		int codes = Integer.parseInt(String.valueOf(code));

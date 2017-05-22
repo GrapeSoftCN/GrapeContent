@@ -15,16 +15,17 @@ import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import esayhelper.TimeHelper;
 import model.ContentModel;
+import rpc.execRequest;
+import sms.ruoyaMASDB;
 
 @SuppressWarnings("unchecked")
 public class Content {
 	private ContentModel content = new ContentModel();
 	private HashMap<String, Object> defmap = new HashMap<>();
-	// private String userId = "test111";
+	// private String userId = "";
 
 	public Content() {
-		// userId = execRequest.getChannelValue("Userid").toString();
-
+		// userId = execRequest.getChan1
 		defmap.put("subName", null);
 		defmap.put("image", "1,2");
 		defmap.put("ownid", 0);
@@ -67,6 +68,14 @@ public class Content {
 		JSONObject infos = JSONHelper.string2json(contents);
 		if (infos.containsKey("content")) {
 			infos.put("content", encode(infos.get("content").toString()));
+		}
+		if (infos.containsKey("image")) {
+			String image = infos.get("image").toString();
+			image = image.replaceAll("@t", "/");
+			if (image.contains("8080")) {
+				image = image.split("8080")[1];
+			}
+			infos.put("image", image);
 		}
 		return content.resultMessage(content.UpdateArticle(oid, infos),
 				"文章更新成功");
@@ -143,7 +152,7 @@ public class Content {
 	}
 
 	/**
-	 * 文章搜索
+	 * 文章模糊查询
 	 * 
 	 * @param jsonstring
 	 * @return
@@ -152,6 +161,11 @@ public class Content {
 		return content.resultMessage(
 				content.search(JSONHelper.string2json(condString)));
 	}
+
+//	public String Search(String condString) {
+//		return content.resultMessage(
+//				content.search(JSONHelper.string2json(condString)));
+//	}
 
 	/**
 	 * 分页
@@ -163,7 +177,6 @@ public class Content {
 	 * @return
 	 */
 	public String Page(int idx, int pageSize) {
-		// System.out.println(execRequest.getChannelValue("GrapeSID"));
 		return content.page(idx, pageSize);
 	}
 
@@ -219,6 +232,16 @@ public class Content {
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
 		object = content.AddMap(defmap, JSONHelper.string2json(ArticleInfo));
 		object.put("content", encode(object.get("content").toString()));
+		if (object.containsKey("image")) {
+			String image = object.get("image").toString();
+			image = image.replaceAll("@t", "/");
+			if (image.contains("8080")) {
+				image = image.split("8080")[1];
+			}
+			object.put("image", image);
+			// object.put("image", StringEscapeUtils
+			// .escapeJava(object.get("image").toString()));
+		}
 		return content.resultMessage(0, content.insert(object));
 	}
 
@@ -321,10 +344,10 @@ public class Content {
 		// String prevCol = execRequest
 		// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + ogid, null)
 		// .toString();
-		String prevCol = appsProxy
-				.proxyCall("123.57.214.226:801",
-						"15/ContentGroup/getPrevCol/s:" + ogid, null, "")
-				.toString();
+		String prevCol = appsProxy.proxyCall("123.57.214.226:801",
+				String.valueOf(appsProxy.appid())
+						+ "/15/ContentGroup/getPrevCol/s:" + ogid,
+				null, "").toString();
 		String fatherid = JSONHelper.string2json(prevCol).get("fatherid")
 				.toString();
 		list = content.getName(list, JSONHelper.string2json(prevCol));
@@ -334,10 +357,10 @@ public class Content {
 			// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + fatherid,
 			// null)
 			// .toString();
-			prevCol = appsProxy
-					.proxyCall("123.57.214.226:801",
-							"15/ContentGroup/getPrevCol/s:" + fatherid, null, "")
-					.toString();
+			prevCol = appsProxy.proxyCall("123.57.214.226:801",
+					String.valueOf(appsProxy.appid())
+							+ "/15/ContentGroup/getPrevCol/s:" + fatherid,
+					null, "").toString();
 			fatherid = JSONHelper.string2json(prevCol).get("fatherid")
 					.toString();
 			list = content.getName(list, JSONHelper.string2json(prevCol));
@@ -348,10 +371,10 @@ public class Content {
 
 	// 获取下级栏目的文章
 	public String getContent(String ogid, int no) {
-		String tips = appsProxy
-				.proxyCall("123.57.214.226:801",
-						"15/ContentGroup/getColumnByFid/s:" + ogid, null, "")
-				.toString();
+		String tips = appsProxy.proxyCall("123.57.214.226:801",
+				String.valueOf(appsProxy.appid())
+						+ "/15/ContentGroup/getColumnByFid/s:" + ogid,
+				null, "").toString();
 		// execRequest
 		// ._run("GrapeContent/ContentGroup/getColumnByFid/s:" + ogid,
 		// null)
@@ -374,5 +397,10 @@ public class Content {
 			list.add(objID.get("$oid").toString());
 		}
 		return StringHelper.join(list);
+	}
+
+	// 根据条件进行统计
+	public String getCount(String info) {
+		return content.getCount(JSONHelper.string2json(info));
 	}
 }
