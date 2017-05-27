@@ -1,10 +1,12 @@
 package model;
 
+import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.Map.Entry;
 
@@ -245,7 +247,7 @@ public class ContentGroupModel {
 				// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
 				// + object.get("tempContent").toString(), null)
 				// .toString();
-				String temp = appsProxy.proxyCall("123.57.214.226:801",
+				String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
 						String.valueOf(appsProxy.appid())
 								+ "/19/TemplateContext/TempFindByTid/s:"
 								+ object.get("tempContent").toString(),
@@ -259,7 +261,7 @@ public class ContentGroupModel {
 				// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
 				// + object.get("tempList").toString(), null)
 				// .toString();
-				String temp = appsProxy.proxyCall("123.57.214.226:801",
+				String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
 						String.valueOf(appsProxy.appid())
 								+ "/19/TemplateContext/TempFindByTid/s:"
 								+ object.get("tempList").toString(),
@@ -281,7 +283,7 @@ public class ContentGroupModel {
 			// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
 			// + object.get("tempContent").toString(), null)
 			// .toString();
-			String temp = appsProxy.proxyCall("123.57.214.226:801",
+			String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
 					appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:"
 							+ object.get("tempContent").toString(),
 					null, "").toString();
@@ -294,7 +296,7 @@ public class ContentGroupModel {
 			// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
 			// + object.get("tempList").toString(), null)
 			// .toString();
-			String temp = appsProxy.proxyCall("123.57.214.226:801",
+			String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
 					appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:"
 							+ object.get("tempList").toString(),
 					null, "").toString();
@@ -324,6 +326,18 @@ public class ContentGroupModel {
 			}
 		}
 		return object;
+	}
+
+	private String getAppIp(String key) {
+		String value = "";
+		try {
+			Properties pro = new Properties();
+			pro.load(new FileInputStream("URLConfig.properties"));
+			value = pro.getProperty(key);
+		} catch (Exception e) {
+			value = "";
+		}
+		return value;
 	}
 
 	@SuppressWarnings("unchecked")

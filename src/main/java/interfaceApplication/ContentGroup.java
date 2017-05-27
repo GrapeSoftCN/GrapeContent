@@ -16,7 +16,6 @@ import model.ContentGroupModel;
 public class ContentGroup {
 	private ContentGroupModel group = new ContentGroupModel();
 	private HashMap<String, Object> defcol = new HashMap<>();
-	// private String userId;
 
 	public ContentGroup() {
 		// userId = execRequest.getChannelValue("Userid").toString();
@@ -41,8 +40,7 @@ public class ContentGroup {
 		// if (!"0".equals(tip)) {
 		// return group.resultMessage(4, "没有新增权限");
 		// }
-		JSONObject ginfos = group.AddMap(defcol,
-				JSONHelper.string2json(GroupInfo));
+		JSONObject ginfos = group.AddMap(defcol, JSONHelper.string2json(GroupInfo));
 		return group.AddGroup(ginfos);
 	}
 
@@ -54,9 +52,7 @@ public class ContentGroup {
 		// if (!"0".equals(tip)) {
 		// return group.resultMessage(5, "没有编辑权限");
 		// }
-		return group.resultMessage(
-				group.UpdateGroup(ogid, JSONHelper.string2json(groupInfo)),
-				"更新内容组数据成功");
+		return group.resultMessage(group.UpdateGroup(ogid, JSONHelper.string2json(groupInfo)), "更新内容组数据成功");
 	}
 
 	// 删除
@@ -82,9 +78,12 @@ public class ContentGroup {
 		// String tips =
 		// execRequest._run("GrapeContent/content/SetGroupBatch/s:"
 		// + StringHelper.join(list), null).toString();
-		String tips = appsProxy.proxyCall("123.57.214.226:801",
-				String.valueOf(appsProxy.appid())+"/15/content/SetGroupBatch/s:" + StringHelper.join(list), null,
-				"").toString();
+//		String tips = appsProxy.proxyCall("123.57.214.226:801",
+//				String.valueOf(appsProxy.appid()) + "/15/content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
+//				.toString();
+		String tips = appsProxy.proxyCall("192.168.98.130",
+				appsProxy.appid()+ "/15/content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
+				.toString();
 		long code = (long) JSONHelper.string2json(tips).get("errorcode");
 		int codes = Integer.parseInt(String.valueOf(code));
 		if (codes == 0) {
@@ -156,8 +155,7 @@ public class ContentGroup {
 		// if (!"0".equals(tip)) {
 		// return group.resultMessage(5, "没有编辑权限");
 		// }
-		return group.resultMessage(group.setfatherid(ogid, fatherid),
-				"成功设置上级栏目");
+		return group.resultMessage(group.setfatherid(ogid, fatherid), "成功设置上级栏目");
 	}
 
 	// 批量删除
@@ -188,13 +186,11 @@ public class ContentGroup {
 		list.add(obj);
 		while (!"0".equals(fatherid)) {
 			String prevCol = getPrevCol(fatherid);
-			fatherid = JSONHelper.string2json(prevCol).get("fatherid")
-					.toString();
+			fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
 			list = group.getName(list, JSONHelper.string2json(prevCol));
 
 		}
 		Collections.reverse(list); // list倒序排列
-		return group.resultMessage(0,
-				JSONHelper.string2array(list.toString()).toString());
+		return group.resultMessage(0, JSONHelper.string2array(list.toString()).toString());
 	}
 }

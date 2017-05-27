@@ -16,6 +16,7 @@ import esayhelper.StringHelper;
 import esayhelper.TimeHelper;
 import model.ContentModel;
 import rpc.execRequest;
+import security.codec;
 import sms.ruoyaMASDB;
 
 @SuppressWarnings("unchecked")
@@ -66,12 +67,10 @@ public class Content {
 		// return content.resultMessage(8, "没有编辑权限");
 		// }
 		JSONObject infos = JSONHelper.string2json(contents);
-		if (infos.containsKey("content")) {
-			infos.put("content", encode(infos.get("content").toString()));
-		}
+		infos.put("content", codec.DecodeHtmlTag(infos.get("content").toString()));
 		if (infos.containsKey("image")) {
 			String image = infos.get("image").toString();
-			image = image.replaceAll("@t", "/");
+			image = codec.DecodeHtmlTag(image);
 			if (image.contains("8080")) {
 				image = image.split("8080")[1];
 			}
@@ -231,29 +230,26 @@ public class Content {
 		// }
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
 		object = content.AddMap(defmap, JSONHelper.string2json(ArticleInfo));
-		object.put("content", encode(object.get("content").toString()));
+//		object.put("content", codec.encodebase64((object.get("content").toString())));
+		String value = object.get("content").toString();
+//		value = value.replaceAll("@t", "/");
+//		value = value.replaceAll("@w", "+");
+		value = codec.DecodeHtmlTag(value);
+		object.put("content", value);
 		if (object.containsKey("image")) {
 			String image = object.get("image").toString();
-			image = image.replaceAll("@t", "/");
-			if (image.contains("8080")) {
-				image = image.split("8080")[1];
+			if (!("").equals(image)) {
+				image = image.replaceAll("@t", "/");
+				if (image.contains("8080")) {
+					image = image.split("8080")[1];
+				}
+				object.put("image", image);
 			}
-			object.put("image", image);
+			
 			// object.put("image", StringEscapeUtils
 			// .escapeJava(object.get("image").toString()));
 		}
 		return content.resultMessage(0, content.insert(object));
-	}
-
-	// 编码
-	public String encode(String htmlContent) {
-		String content = null;
-		try {
-			content = URLEncoder.encode(htmlContent, "utf-8");
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		}
-		return content;
 	}
 
 	public JSONObject getwbid(String wbid, JSONObject object) {
