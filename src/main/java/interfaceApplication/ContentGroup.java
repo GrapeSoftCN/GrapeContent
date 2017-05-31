@@ -12,6 +12,7 @@ import apps.appsProxy;
 import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import model.ContentGroupModel;
+import nlogger.nlogger;
 
 public class ContentGroup {
 	private ContentGroupModel group = new ContentGroupModel();
@@ -65,35 +66,40 @@ public class ContentGroup {
 		// return group.resultMessage(6, "没有删除权限");
 		// }
 		// 获取该栏目下的所有子栏目
+		long code = -1;
+		int codes = -1;
 		List<String> list = new ArrayList<>();
 		JSONArray arrays = group.getColumn(ogid);
-		while (arrays.size() != 0) {
-			List<String> temp = new ArrayList<>();
-			temp = group.getList(arrays);
-			arrays = group.getColumn(StringHelper.join(list));
-			list.addAll(temp);
-		}
-		list.add(ogid);
-		// 设置该栏目及所有子栏目下的文章的栏目设为默认值
-		// String tips =
-		// execRequest._run("GrapeContent/content/SetGroupBatch/s:"
-		// + StringHelper.join(list), null).toString();
-//		String tips = appsProxy.proxyCall("123.57.214.226:801",
-//				String.valueOf(appsProxy.appid()) + "/15/content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
-//				.toString();
-		String tips = appsProxy.proxyCall("192.168.98.130",
-				appsProxy.appid()+ "/15/content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
-				.toString();
-		long code = (long) JSONHelper.string2json(tips).get("errorcode");
-		int codes = Integer.parseInt(String.valueOf(code));
-		if (codes == 0) {
-			if (list.size() > 1) {
-				codes = group.delete(StringHelper.join(list).split(","));
-			} else {
-				codes = group.DeleteGroup(StringHelper.join(list));
+		if( arrays != null ){
+			try{
+				while (arrays.size() > 0) {
+					List<String> temp = new ArrayList<>();
+					temp = group.getList(arrays);
+					arrays = group.getColumn(StringHelper.join(list));
+					list.addAll(temp);
+				}
+				list.add(ogid);
+				String tips = appsProxy.proxyCall("192.168.98.130",
+						appsProxy.appid()+ "/15/content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
+						.toString();
+				if( tips != null && !tips.equals("") ){
+					code = (long) JSONHelper.string2json(tips).get("errorcode");
+					codes = Integer.parseInt(String.valueOf(code));
+					if (codes == 0) {
+						if (list.size() > 1) {
+							codes = group.delete(StringHelper.join(list).split(","));
+						} else {
+							codes = group.DeleteGroup(StringHelper.join(list));
+						}
+					}
+				}
+			}
+			catch(Exception e){
+				codes = -1;
+				nlogger.logout(e);
 			}
 		}
-		return group.resultMessage(codes, "栏目删除成功");
+		return codes == -1 ? "" : group.resultMessage(codes, "栏目删除成功");
 	}
 
 	public String FindByType(String type, int no) {
@@ -170,27 +176,36 @@ public class ContentGroup {
 
 	// 获得上级栏目id，name，fatherid
 	public String getPrevCol(String ogid) {
-		return group.find(ogid).toString();
+		JSONObject rs = group.find(ogid);
+		return rs != null ? rs.toString() : "";
 	}
 
 	// 获取当前文章所在栏目位置
 	@SuppressWarnings("unchecked")
 	public String getPreColumn(String ogid) {
-		JSONObject object = group.find(ogid);
-		JSONObject obj = new JSONObject();
-		List<JSONObject> list = new ArrayList<>();
-		String fatherid = object.get("fatherid").toString();
-		JSONObject objID = (JSONObject) object.get("_id");
-		obj.put("_id", objID.get("$oid").toString());
-		obj.put("name", object.get("name").toString());
-		list.add(obj);
-		while (!"0".equals(fatherid)) {
-			String prevCol = getPrevCol(fatherid);
-			fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
-			list = group.getName(list, JSONHelper.string2json(prevCol));
+		List<JSONObject> list = null;
+		try{
+			list = new ArrayList<>(); 
+			JSONObject object = group.find(ogid);
+			JSONObject obj = new JSONObject();
+			
+			String fatherid = object.get("fatherid").toString();
+			JSONObject objID = (JSONObject) object.get("_id");
+			obj.put("_id", objID.get("$oid").toString());
+			obj.put("name", object.get("name").toString());
+			list.add(obj);
+			while (!"0".equals(fatherid)) {
+				String prevCol = getPrevCol(fatherid);
+				fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
+				list = group.getName(list, JSONHelper.string2json(prevCol));
 
+			}
+			Collections.reverse(list); // list倒序排列
 		}
-		Collections.reverse(list); // list倒序排列
-		return group.resultMessage(0, JSONHelper.string2array(list.toString()).toString());
+		catch(Exception e){
+			nlogger.logout(e);
+			list = null;
+		}
+		return list != null ? group.resultMessage(0, JSONHelper.string2array(list.toString()).toString()) : "";
 	}
 }

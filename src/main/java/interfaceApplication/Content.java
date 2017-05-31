@@ -1,9 +1,11 @@
 package interfaceApplication;
 
+import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Properties;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -13,6 +15,7 @@ import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import esayhelper.TimeHelper;
 import model.ContentModel;
+import nlogger.nlogger;
 import security.codec;
 
 @SuppressWarnings("unchecked")
@@ -47,6 +50,16 @@ public class Content {
 		defmap.put("time", TimeHelper.nowMillis() + "");
 	}
 
+	private String getImageUri(String imageURL){
+		String subString;
+		String rString = null;
+		int i = imageURL.toLowerCase().indexOf("http://");
+		if( i >= 0){
+			subString = imageURL.substring(i + 7);
+			rString = subString.split("/")[0];
+		}
+		return rString;
+	}
 	/**
 	 * 修改文章
 	 * 
@@ -54,26 +67,28 @@ public class Content {
 	 * @return
 	 */
 	public String EditArticle(String oid, String contents) {
-		// String uPLV = content.select(oid).get("uplv").toString();
-		// String tip = execRequest
-		// ._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV + "/s:" + userId,
-		// null)
-		// .toString();
-		// if (!"0".equals(tip)) {
-		// return content.resultMessage(8, "没有编辑权限");
-		// }
 		JSONObject infos = JSONHelper.string2json(contents);
-		infos.put("content", codec.DecodeHtmlTag(infos.get("content").toString()));
-		if (infos.containsKey("image")) {
-			String image = infos.get("image").toString();
-			image = codec.DecodeHtmlTag(image);
-			if (image.contains("8080")) {
-				image = image.split("8080")[1];
+		if( infos != null ){
+			try{
+				infos.put("content", codec.DecodeHtmlTag(infos.get("content").toString()));
+				if (infos.containsKey("image")) {
+					String image = infos.get("image").toString();
+					image = getImageUri(codec.DecodeHtmlTag(image));
+					/*
+					if (image.contains("8080")) {
+						image = image.split("8080")[1];
+					}
+					*/
+					if( image != null ){
+						infos.put("image", image);
+					}
+				}
 			}
-			infos.put("image", image);
+			catch( Exception e ){
+				e.printStackTrace();
+			}
 		}
-		return content.resultMessage(content.UpdateArticle(oid, infos),
-				"文章更新成功");
+		return content.resultMessage(content.UpdateArticle(oid, infos),"文章更新成功");
 	}
 
 	/**
@@ -84,14 +99,6 @@ public class Content {
 	 * @return
 	 */
 	public String DeleteArticle(String oid) {
-		// String dPLV = content.select(oid).get("dplv").toString();
-		// String tip = execRequest
-		// ._run("GrapeAuth/Auth/DeletePLV/s:" + dPLV + "/s:" + userId,
-		// null)
-		// .toString();
-		// if (!"0".equals(tip)) {
-		// return content.resultMessage(9, "没有删除权限");
-		// }
 		return content.resultMessage(content.DeleteArticle(oid), "文章删除成功");
 	}
 
@@ -225,45 +232,36 @@ public class Content {
 		// return content.resultMessage(7, "没有新增权限");
 		// }
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
-		object = content.AddMap(defmap, JSONHelper.string2json(ArticleInfo));
-//		object.put("content", codec.encodebase64((object.get("content").toString())));
-		String value = object.get("content").toString();
-//		value = value.replaceAll("@t", "/");
-//		value = value.replaceAll("@w", "+");
-		value = codec.DecodeHtmlTag(value);
-		object.put("content", value);
-		if (object.containsKey("image")) {
-			String image = object.get("image").toString();
-			if (!("").equals(image)) {
-				image = image.replaceAll("@t", "/");
-				if (image.contains("8080")) {
-					image = image.split("8080")[1];
+		if( object != null ){
+			object = content.AddMap(defmap, object);
+			String value = object.get("content").toString();
+			value = codec.DecodeHtmlTag(value);
+			object.put("content", value);
+			if (object.containsKey("image")) {
+				String image = object.get("image").toString();
+				if (image != null && !("").equals(image)) {
+					image = getImageUri( image.replaceAll("@t", "/") );
+					object.put("image", image);
 				}
-				object.put("image", image);
 			}
-			
-			// object.put("image", StringEscapeUtils
-			// .escapeJava(object.get("image").toString()));
 		}
 		return content.resultMessage(0, content.insert(object));
 	}
 
 	public JSONObject getwbid(String wbid, JSONObject object) {
-		List<String> list = new ArrayList<>();
-		if (object.containsKey("wbid")) {
-			String wbsid = object.get("wbid").toString();
-			if (wbsid.contains(",")) {
+		if( object != null ){
+			List<String> list = new ArrayList<>();
+			if (object.containsKey("wbid")) {
+				String wbsid = object.get("wbid").toString();
 				String[] value = wbsid.split(",");
 				for (int i = 0; i < value.length; i++) {
 					list.add(value[i]);
 				}
-			} else {
 				list.add(wbid);
+				wbid = StringHelper.join(list);
 			}
-			list.add(wbid);
-			wbid = StringHelper.join(list);
+			object.put("wbid", wbid);
 		}
-		object.put("wbid", wbid);
 		return object;
 	}
 
@@ -326,73 +324,104 @@ public class Content {
 	// 获取当前文章所在栏目位置
 	public String getPosition(String oid) {
 		List<JSONObject> list = new ArrayList<>();
-		// 获取文章所属的栏目id
-		String message = JSONHelper.string2json(findArticle(oid)).get("message")
-				.toString();
-		String records = JSONHelper.string2json(message).get("records")
-				.toString();
-		String ogid = JSONHelper.string2json(records).get("ogid").toString();
-		// 根据栏目id查询栏目信息
-		// String prevCol = execRequest
-		// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + ogid, null)
-		// .toString();
-		String prevCol = appsProxy.proxyCall("123.57.214.226:801",
-				String.valueOf(appsProxy.appid())
-						+ "/15/ContentGroup/getPrevCol/s:" + ogid,
-				null, "").toString();
-		String fatherid = JSONHelper.string2json(prevCol).get("fatherid")
-				.toString();
-		list = content.getName(list, JSONHelper.string2json(prevCol));
-		// 根据fatherid获取上一级栏目，直到fatherid=0
-		while (!"0".equals(fatherid)) {
-			// prevCol = execRequest
-			// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + fatherid,
-			// null)
+		try{
+			// 获取文章所属的栏目id
+			String message = JSONHelper.string2json(findArticle(oid)).get("message").toString();
+			String records = JSONHelper.string2json(message).get("records").toString();
+			String ogid = JSONHelper.string2json(records).get("ogid").toString();
+			// 根据栏目id查询栏目信息
+			// String prevCol = execRequest
+			// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + ogid, null)
 			// .toString();
-			prevCol = appsProxy.proxyCall("123.57.214.226:801",
+			String prevCol = appsProxy.proxyCall(callhost(),
 					String.valueOf(appsProxy.appid())
-							+ "/15/ContentGroup/getPrevCol/s:" + fatherid,
+							+ "/15/ContentGroup/getPrevCol/s:" + ogid,
 					null, "").toString();
-			fatherid = JSONHelper.string2json(prevCol).get("fatherid")
+			String fatherid = JSONHelper.string2json(prevCol).get("fatherid")
 					.toString();
 			list = content.getName(list, JSONHelper.string2json(prevCol));
+			// 根据fatherid获取上一级栏目，直到fatherid=0
+			while (!"0".equals(fatherid)) {
+				// prevCol = execRequest
+				// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + fatherid,
+				// null)
+				// .toString();
+				prevCol = appsProxy.proxyCall(callhost(),
+						String.valueOf(appsProxy.appid())
+								+ "/15/ContentGroup/getPrevCol/s:" + fatherid,
+						null, "").toString();
+				fatherid = JSONHelper.string2json(prevCol).get("fatherid")
+						.toString();
+				list = content.getName(list, JSONHelper.string2json(prevCol));
+			}
+			Collections.reverse(list); // list倒序排列
 		}
-		Collections.reverse(list); // list倒序排列
-		return content.resultMessage(JSONHelper.string2array(list.toString()));
+		catch(Exception e){
+			nlogger.logout(e);
+			list = null;
+		}
+		return list != null ? content.resultMessage(JSONHelper.string2array(list.toString())) : "";
 	}
 
 	// 获取下级栏目的文章
 	public String getContent(String ogid, int no) {
-		String tips = appsProxy.proxyCall("123.57.214.226:801",
-				String.valueOf(appsProxy.appid())
-						+ "/15/ContentGroup/getColumnByFid/s:" + ogid,
-				null, "").toString();
-		// execRequest
-		// ._run("GrapeContent/ContentGroup/getColumnByFid/s:" + ogid,
-		// null)
-		// .toString();
-		String message = JSONHelper.string2json(tips).get("message").toString();
-		String records = JSONHelper.string2json(message).get("records")
-				.toString();
-		JSONArray array = JSONHelper.string2array(records);
-		String ids = getID(array);
+		String ids = null;
+		try{
+			String tips = appsProxy.proxyCall(callhost(),
+					String.valueOf(appsProxy.appid())
+							+ "/15/ContentGroup/getColumnByFid/s:" + ogid,
+					null, "").toString();
+			// execRequest
+			// ._run("GrapeContent/ContentGroup/getColumnByFid/s:" + ogid,
+			// null)
+			// .toString();
+			String message = JSONHelper.string2json(tips).get("message").toString();
+			String records = JSONHelper.string2json(message).get("records")
+					.toString();
+			JSONArray array = JSONHelper.string2array(records);
+			ids = getID(array);
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+			ids = null;
+		}
 		// 批量查询
-		return content.resultMessage(content.find(ids.split(","), no));
+		return ids == null ? "" : content.resultMessage(content.find(ids.split(","), no));
 	}
 
 	// 获取文章id
 	public String getID(JSONArray array) {
-		List<String> list = new ArrayList<>();
-		for (int i = 0, len = array.size(); i < len; i++) {
-			JSONObject object = (JSONObject) array.get(i);
-			JSONObject objID = (JSONObject) object.get("_id");
-			list.add(objID.get("$oid").toString());
+		List<String> list = null;
+		if( array != null ){
+			list = new ArrayList<>();
+			JSONObject object;
+			JSONObject objID;
+			for (int i = 0, len = array.size(); i < len; i++) {
+				object = (JSONObject) array.get(i);
+				objID = (JSONObject) object.get("_id");
+				list.add(objID.get("$oid").toString());
+			}
 		}
-		return StringHelper.join(list);
+		return list == null ? "" : StringHelper.join(list);
 	}
 
 	// 根据条件进行统计
 	public String getCount(String info) {
 		return content.getCount(JSONHelper.string2json(info));
+	}
+	
+	private String callhost(){
+		return getAppIp("host").split("/")[0];
+	}
+	private String getAppIp(String key) {
+		String value = "";
+		try {
+			Properties pro = new Properties();
+			pro.load(new FileInputStream("URLConfig.properties"));
+			value = pro.getProperty(key);
+		} catch (Exception e) {
+			value = "";
+		}
+		return value;
 	}
 }

@@ -14,12 +14,16 @@ import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import com.sun.mail.util.MailLogger;
+
 import apps.appsProxy;
 import database.db;
 import esayhelper.DBHelper;
 import esayhelper.JSONHelper;
 import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
+import interrupt.interrupt;
+import nlogger.nlogger;
 
 public class ContentGroupModel {
 	private static formHelper _form;
@@ -61,6 +65,9 @@ public class ContentGroupModel {
 	 * 
 	 */
 	public String AddGroup(JSONObject groupinfo) {
+		if( groupinfo == null ){
+			return resultMessage(0, "内容组插入失败");
+		}
 		if (!_form.checkRuleEx(groupinfo)) {
 			return resultMessage(2, "");
 		}
@@ -77,14 +84,21 @@ public class ContentGroupModel {
 	}
 
 	public int UpdateGroup(String ogid, JSONObject groupinfo) {
+		int i = 99;
 		if (groupinfo.containsKey("name")) {
-			String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
-			if (!check_name(name)) {
-				return 1;
+			try{
+				String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
+				if (!check_name(name)) {
+					return 1;
+				}
+				i = bind().eq("_id", new ObjectId(ogid)).data(groupinfo).update() != null ? 0 : 99;
+			}
+			catch(Exception e){
+				nlogger.logout(e);
+				i =99;
 			}
 		}
-		return bind().eq("_id", new ObjectId(ogid)).data(groupinfo)
-				.update() != null ? 0 : 99;
+		return i;
 	}
 
 	public int DeleteGroup(String ogid) {
@@ -98,86 +112,152 @@ public class ContentGroupModel {
 
 	@SuppressWarnings("unchecked")
 	public JSONArray select(String contentInfo) {
-		JSONObject object = JSONHelper.string2json(contentInfo);
-		Set<Object> set = object.keySet();
-		for (Object object2 : set) {
-			if ("_id".equals(object2.toString())) {
-				bind().eq("_id", new ObjectId(object.get("_id").toString()));
+		JSONArray array = null;
+		try{
+			JSONObject object = JSONHelper.string2json(contentInfo);
+			Set<Object> set = object.keySet();
+			for (Object object2 : set) {
+				if ("_id".equals(object2.toString())) {
+					bind().eq("_id", new ObjectId(object.get("_id").toString()));
+				}
+				bind().eq(object2.toString(), object.get(object2.toString()));
 			}
-			bind().eq(object2.toString(), object.get(object2.toString()));
+			array = bind().limit(20).select();
 		}
-		return bind().limit(20).select();
+		catch(Exception e){
+			nlogger.logout(e);
+			array = null;
+		}
+		return array;
 	}
 
 	@SuppressWarnings("unchecked")
 	public String page(int idx, int pageSize) {
-		JSONArray array = bind().page(idx, pageSize);
-		JSONObject object = new JSONObject();
-		object.put("totalSize",
-				(int) Math.ceil((double) bind().count() / pageSize));
-		object.put("currentPage", idx);
-		object.put("pageSize", pageSize);
-		object.put("data", join(array));
+		JSONObject object = null;
+		try{
+			JSONArray array = bind().page(idx, pageSize);
+			object = new JSONObject();
+			object.put("totalSize",
+					(int) Math.ceil((double) bind().count() / pageSize));
+			object.put("currentPage", idx);
+			object.put("pageSize", pageSize);
+			object.put("data", join(array));
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+			object = null;
+		}
 		return resultMessage(object);
 	}
 
 	@SuppressWarnings("unchecked")
 	public String page(int idx, int pageSize, JSONObject GroupInfo) {
-		for (Object object2 : GroupInfo.keySet()) {
-			if (GroupInfo.containsKey("_id")) {
-				bind().eq("_id",
-						new ObjectId(GroupInfo.get("_id").toString()));
+		JSONObject object = null;
+		if( GroupInfo != null ){
+			try{
+				for (Object object2 : GroupInfo.keySet()) {
+					if (GroupInfo.containsKey("_id")) {
+						bind().eq("_id",
+								new ObjectId(GroupInfo.get("_id").toString()));
+					}
+					bind().eq(object2.toString(), GroupInfo.get(object2.toString()));
+				}
+				JSONArray array = bind().dirty().page(idx, pageSize);
+				object = new JSONObject();
+				object.put("totalSize",
+						(int) Math.ceil((double) bind().count() / pageSize));
+				object.put("currentPage", idx);
+				object.put("pageSize", pageSize);
+				object.put("data", join(array));
 			}
-			bind().eq(object2.toString(), GroupInfo.get(object2.toString()));
+			catch(Exception e){
+				nlogger.logout(e);
+				object = null;
+			}
 		}
-		JSONArray array = bind().dirty().page(idx, pageSize);
-		JSONObject object = new JSONObject();
-		object.put("totalSize",
-				(int) Math.ceil((double) bind().count() / pageSize));
-		object.put("currentPage", idx);
-		object.put("pageSize", pageSize);
-		object.put("data", join(array));
+		
 		return resultMessage(object);
 	}
 
 	@SuppressWarnings("unchecked")
 	public int setfatherid(String ogid, int fatherid) {
-		JSONObject object = new JSONObject();
-		object.put("fatherid", fatherid);
-		return bind().eq("_id", new ObjectId(ogid)).data(object)
-				.update() != null ? 0 : 99;
+		int i = 99;
+		JSONObject object = null;
+		try{
+			object = new JSONObject();
+			object.put("fatherid", fatherid);
+			i = bind().eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+			i = 99;
+		}
+		return i;
 	}
 
 	@SuppressWarnings("unchecked")
 	public int setsort(String ogid, int num) {
-		JSONObject object = new JSONObject();
-		object.put("sort", num);
-		return bind().eq("_id", new ObjectId(ogid)).data(object)
-				.update() != null ? 0 : 99;
+		int i = 99;
+		JSONObject object = null;
+		try{
+			object = new JSONObject();
+			object.put("sort", num);
+			i = bind().eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+			i = 99;
+		}
+		return i;
 	}
 
 	@SuppressWarnings("unchecked")
 	public int setTempId(String ogid, String tempid) {
-		JSONObject object = new JSONObject();
-		object.put("tempid", tempid);
-		return bind().eq("_id", new ObjectId(ogid)).data(object)
-				.update() != null ? 0 : 99;
+		int i = 99;
+		JSONObject object = null;
+		try{
+			object = new JSONObject();
+			object.put("tempid", tempid);
+			i = bind().eq("_id", new ObjectId(ogid)).data(object)
+					.update() != null ? 0 : 99;
+		}
+		catch(Exception e){
+			i = 99;
+			nlogger.logout(e);
+		}
+		return i;
 	}
 
 	@SuppressWarnings("unchecked")
 	public int setslevel(String ogid, int slevel) {
-		JSONObject object = new JSONObject();
-		object.put("slevel", slevel);
-		return bind().eq("_id", new ObjectId(ogid)).data(object)
-				.update() != null ? 0 : 99;
+		int i = 99;
+		JSONObject object = null;
+		try{
+			object = new JSONObject();
+			object.put("slevel", slevel);
+			i = bind().eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+			i = 99;
+		}
+		return i;
 	}
 
 	public int delete(String[] arr) {
-		bind().or();
-		for (int i = 0; i < arr.length; i++) {
-			bind().eq("_id", new ObjectId(arr[i]));
+		int ir = 99;
+		try{
+			bind().or();
+			for (int i = 0; i < arr.length; i++) {
+				bind().eq("_id", new ObjectId(arr[i]));
+			}
+			ir = bind().deleteAll() == arr.length ? 0 : 99;
 		}
-		return bind().deleteAll() == arr.length ? 0 : 99;
+		catch(Exception e){
+			nlogger.logout(e);
+			ir = 99;
+		}
+		return ir;
 	}
 
 	public boolean check_name(String name) {
@@ -237,72 +317,87 @@ public class ContentGroupModel {
 	// 获取模版id，合并到jsonarray
 	@SuppressWarnings("unchecked")
 	private JSONArray join(JSONArray array) {
-		JSONArray arrays = new JSONArray();
-		for (int i = 0, len = array.size(); i < len; i++) {
-			JSONObject object = (JSONObject) array.get(i);
-			if (object.get("tempContent").toString().equals("0")) {
-				object.put("tempContent", null);
-			} else {
-				// String temp = execRequest
-				// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
-				// + object.get("tempContent").toString(), null)
-				// .toString();
-				String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
-						String.valueOf(appsProxy.appid())
-								+ "/19/TemplateContext/TempFindByTid/s:"
-								+ object.get("tempContent").toString(),
-						null, "").toString();
-				object.put("tempContent", temp);
+		JSONArray arrays = null;
+		try{
+			arrays = new JSONArray();
+			for (int i = 0, len = array.size(); i < len; i++) {
+				JSONObject object = (JSONObject) array.get(i);
+				if (object.get("tempContent").toString().equals("0")) {
+					object.put("tempContent", null);
+				} else {
+					// String temp = execRequest
+					// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+					// + object.get("tempContent").toString(), null)
+					// .toString();
+					String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
+							String.valueOf(appsProxy.appid())
+									+ "/19/TemplateContext/TempFindByTid/s:"
+									+ object.get("tempContent").toString(),
+							null, "").toString();
+					object.put("tempContent", temp);
+				}
+				if (object.get("tempList").toString().equals("0")) {
+					object.put("tempList", null);
+				} else {
+					// String temp = execRequest
+					// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+					// + object.get("tempList").toString(), null)
+					// .toString();
+					String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
+							String.valueOf(appsProxy.appid())
+									+ "/19/TemplateContext/TempFindByTid/s:"
+									+ object.get("tempList").toString(),
+							null, "").toString();
+					object.put("tempList", temp);
+				}
+				arrays.add(object);
 			}
-			if (object.get("tempList").toString().equals("0")) {
-				object.put("tempList", null);
-			} else {
-				// String temp = execRequest
-				// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
-				// + object.get("tempList").toString(), null)
-				// .toString();
-				String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
-						String.valueOf(appsProxy.appid())
-								+ "/19/TemplateContext/TempFindByTid/s:"
-								+ object.get("tempList").toString(),
-						null, "").toString();
-				object.put("tempList", temp);
-			}
-			arrays.add(object);
 		}
+		catch(Exception e){
+			nlogger.logout(e);
+			arrays = null;
+		}		
 		return arrays;
 	}
 
 	// 获取模版id，合并到jsonarray
 	@SuppressWarnings("unchecked")
 	private JSONObject join(JSONObject object) {
-		if (object.get("tempContent").toString().equals("0")) {
-			object.put("tempContent", null);
-		} else {
-			// String temp = execRequest
-			// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
-			// + object.get("tempContent").toString(), null)
-			// .toString();
-			String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
-					appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:"
-							+ object.get("tempContent").toString(),
-					null, "").toString();
-			object.put("tempContent", temp);
+		JSONObject oj = object;
+		try{
+			if (oj.get("tempContent").toString().equals("0")) {
+				oj.put("tempContent", null);
+			} else {
+				// String temp = execRequest
+				// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+				// + object.get("tempContent").toString(), null)
+				// .toString();
+				String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
+						appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:"
+								+ oj.get("tempContent").toString(),
+						null, "").toString();
+				oj.put("tempContent", temp);
+			}
+			if (oj.get("tempList").toString().equals("0")) {
+				oj.put("tempList", null);
+			} else {
+				// String temp = execRequest
+				// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
+				// + object.get("tempList").toString(), null)
+				// .toString();
+				String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
+						appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:"
+								+ oj.get("tempList").toString(),
+						null, "").toString();
+				oj.put("tempList", temp);
+			}
+
 		}
-		if (object.get("tempList").toString().equals("0")) {
-			object.put("tempList", null);
-		} else {
-			// String temp = execRequest
-			// ._run("GrapeTemplate/TemplateContext/TempFindByTid/s:"
-			// + object.get("tempList").toString(), null)
-			// .toString();
-			String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
-					appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:"
-							+ object.get("tempList").toString(),
-					null, "").toString();
-			object.put("tempList", temp);
+		catch(Exception e){
+			oj = null;
+			nlogger.logout(e);
 		}
-		return object;
+		return oj;
 	}
 
 	/**
@@ -314,16 +409,19 @@ public class ContentGroupModel {
 	 */
 	@SuppressWarnings("unchecked")
 	public JSONObject AddMap(HashMap<String, Object> map, JSONObject object) {
-		if (map.entrySet() != null) {
-			Iterator<Entry<String, Object>> iterator = map.entrySet()
-					.iterator();
-			while (iterator.hasNext()) {
-				Map.Entry<String, Object> entry = (Map.Entry<String, Object>) iterator
-						.next();
-				if (!object.containsKey(entry.getKey())) {
-					object.put(entry.getKey(), entry.getValue());
+		if( object != null ){
+			if (map.entrySet() != null) {
+				Iterator<Entry<String, Object>> iterator = map.entrySet()
+						.iterator();
+				while (iterator.hasNext()) {
+					Map.Entry<String, Object> entry = (Map.Entry<String, Object>) iterator
+							.next();
+					if (!object.containsKey(entry.getKey())) {
+						object.put(entry.getKey(), entry.getValue());
+					}
 				}
 			}
+			
 		}
 		return object;
 	}
@@ -342,12 +440,18 @@ public class ContentGroupModel {
 
 	@SuppressWarnings("unchecked")
 	private String resultMessage(JSONObject object) {
+		if( object == null ){
+			object = new JSONObject();
+		}
 		_obj.put("records", object);
 		return resultMessage(0, _obj.toString());
 	}
 
 	@SuppressWarnings("unchecked")
 	private String resultMessage(JSONArray array) {
+		if( array == null ){
+			array = new JSONArray();
+		}
 		_obj.put("records", array);
 		return resultMessage(0, _obj.toString());
 	}
