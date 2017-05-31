@@ -1,7 +1,5 @@
 package interfaceApplication;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,9 +13,7 @@ import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import esayhelper.TimeHelper;
 import model.ContentModel;
-import rpc.execRequest;
 import security.codec;
-import sms.ruoyaMASDB;
 
 @SuppressWarnings("unchecked")
 public class Content {

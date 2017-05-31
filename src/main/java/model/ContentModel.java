@@ -189,7 +189,7 @@ public class ContentModel {
 	public String page(int idx, int pageSize, JSONObject content) {
 		System.out.println("idx:"+idx+",pageSize:"+pageSize+",content:"+content);
 		JSONObject object = new JSONObject();
-		if (content == null) {
+		if (content == null&&(" ").equals(content)) {
 			return resultMessage(0, "");
 		}
 		for (Object object2 : content.keySet()) {
@@ -200,7 +200,6 @@ public class ContentModel {
 		}
 		JSONArray array = bind().dirty().desc("time").page(idx, pageSize);
 		JSONArray array2 = dencode(array);
-//		System.out.println("cc"+(int) Math.ceil((double) bind().count() / pageSize));
 		object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
@@ -208,7 +207,6 @@ public class ContentModel {
 		return resultMessage(object);
 	}
 
-	@SuppressWarnings("unchecked")
 	private JSONArray dencode(JSONArray array) {
 		if (array.size() == 0) {
 			return array;
