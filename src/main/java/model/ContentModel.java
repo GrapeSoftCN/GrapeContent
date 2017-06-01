@@ -21,6 +21,8 @@ import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
 import esayhelper.formHelper.formdef;
 import jodd.util.ArraysUtil;
+import nlogger.nlogger;
+import offices.excelHelper;
 import security.codec;
 
 @SuppressWarnings("unchecked")
@@ -57,6 +59,9 @@ public class ContentModel {
 	 */
 	// 不允许重复添加，但存在同名不同内容的文章
 	public String insert(JSONObject content) {
+		if( content == null ){
+			return resultMessage(0, "插入失败");
+		}
 		if (!_form.checkRuleEx(content)) {
 			return resultMessage(2, "");
 		}
@@ -71,28 +76,43 @@ public class ContentModel {
 				content.put("image", getimage(content));
 			}
 		}
-		String info = bind().data(content).insertOnce().toString();
-		return resultMessage(findByOid(info));
+		String info = null;
+		JSONObject ro = null;
+		try{
+			info = bind().data(content).insertOnce().toString();
+			ro = findByOid(info);
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+		}
+		return resultMessage(ro);
 	}
 
 	public int UpdateArticle(String oid, JSONObject content) {
-		if (content.containsKey("mainName")) {
-			if (content.get("mainName").toString().equals("")) {
-				return 1;
-			}
-		}
-		if (content.containsKey("_id")) {
-			content.remove("_id");
-		}
-		if (content.containsKey("image")) {
-			String image = content.get("image").toString();
-			if (image.contains("upload")) {
-				if (image.contains("8080")) {
-					content.put("image", getimage(content));
+		int ri = 99;
+		try{
+			if (content.containsKey("mainName")) {
+				if (content.get("mainName").toString().equals("")) {
+					return 1;
 				}
 			}
+			if (content.containsKey("_id")) {
+				content.remove("_id");
+			}
+			if (content.containsKey("image")) {
+				String image = content.get("image").toString();
+				if (image.contains("upload")) {
+					if (image.contains("8080")) {
+						content.put("image", getimage(content));
+					}
+				}
+			}
+			ri = bind().eq("_id", new ObjectId(oid)).data(content).update() != null ? 0 : 99;
 		}
-		return bind().eq("_id", new ObjectId(oid)).data(content).update() != null ? 0 : 99;
+		catch(Exception e){
+			ri = 99;
+		}
+		return ri;
 	}
 
 	public int DeleteArticle(String oid) {
@@ -108,14 +128,22 @@ public class ContentModel {
 	 *            栏目id
 	 */
 	public int deleteByOgID(String oid, String ogid) {
-		// 查询oid对应的文章
-		JSONObject _obj = (JSONObject) bind().eq("_id", new ObjectId(oid)).select().get(0);
-		// 获取栏目id
-		String values = _obj.get("ogid").toString();
-		values = values.replace(ogid, "");
-		JSONObject obj = new JSONObject();
-		obj.put("ogid", values);
-		return bind().eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
+		int i = 99;
+		try{
+			// 查询oid对应的文章
+			JSONObject _obj = (JSONObject) bind().eq("_id", new ObjectId(oid)).select().get(0);
+			// 获取栏目id
+			String values = _obj.get("ogid").toString();
+			values = values.replace(ogid, "");
+			JSONObject obj = new JSONObject();
+			obj.put("ogid", values);
+			i = bind().eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
+		}
+		catch( Exception e){
+			nlogger.logout(e);
+			i = 99;
+		}
+		return i;
 	}
 
 	/**
@@ -128,14 +156,22 @@ public class ContentModel {
 	 * @return
 	 */
 	public int deleteByWbID(String oid, String wbid) {
-		// 查询oid对应的文章
-		JSONObject _obj = (JSONObject) bind().eq("_id", new ObjectId(oid)).select().get(0);
-		// 获取站点id
-		String values = _obj.get("wbid").toString();
-		values = values.replace(wbid, "");
-		JSONObject obj = new JSONObject();
-		obj.put("wbid", values);
-		return bind().eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
+		int i = 99;
+		try{
+			// 查询oid对应的文章
+			JSONObject _obj = (JSONObject) bind().eq("_id", new ObjectId(oid)).select().get(0);
+			// 获取站点id
+			String values = _obj.get("wbid").toString();
+			values = values.replace(wbid, "");
+			JSONObject obj = new JSONObject();
+			obj.put("wbid", values);
+			i = bind().eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+			i = 99;
+		}
+		return i;
 	}
 
 	/**
@@ -146,64 +182,94 @@ public class ContentModel {
 	 * @return
 	 */
 	public int setGroup(String oid, String ogid) {
-		// 查询oid对应的文章
-		JSONObject _obj = (JSONObject) select(oid).get(0);
-		// 获取栏目id
-		String[] value = _obj.get("ogid").toString().split(",");
-		// 判断该栏目是否存在
-		if (ArraysUtil.contains(value, ogid)) {
-			return 3; // 返回3 文章已存在于该栏目下
+		int i= 99;
+		try{
+			JSONObject obj = new JSONObject();
+			// 查询oid对应的文章
+			JSONObject _aArray = select(oid);
+			if( _aArray != null ){
+				JSONObject _obj = (JSONObject) _aArray.get(0);
+				// 获取栏目id
+				String[] value = _obj.get("ogid").toString().split(",");
+				// 判断该栏目是否存在
+				if (ArraysUtil.contains(value, ogid)) {
+					return 3; // 返回3 文章已存在于该栏目下
+				}
+				String values = StringHelper.join(ArraysUtil.append(value, ogid));
+				obj.put("ogid", values);
+				i = bind().eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
+			}
 		}
-		String values = StringHelper.join(ArraysUtil.append(value, ogid));
-		JSONObject obj = new JSONObject();
-		obj.put("ogid", values);
-		return bind().eq("_id", new ObjectId(oid)).data(obj).update() != null ? 0 : 99;
+		catch(Exception e){
+			System.out.println("content.setGroup:oid,ogid:" + e.getMessage());
+			i = 99;
+		}
+		return i;
 	}
 
 	public int setGroup(String ogid) {
-		String cont = "{\"ogid\":0}";
-		if (ogid.contains(",")) {
-			String[] value = ogid.split(",");
-			int len = value.length;
-			bind().or();
-			for (int i = 0; i < len; i++) {
-				bind().eq("ogid", value[i]);
+		int ir = 99;
+		try{
+			String cont = "{\"ogid\":0}";
+			if( ogid != null && !"".equals(ogid) ){
+				String[] value = ogid.split(",");
+				int len = value.length;
+				bind().or();
+				for (int i = 0; i < len; i++) {
+					bind().eq("ogid", value[i]);
+				}
 			}
-		} else {
-			bind().eq("ogid", ogid);
+			ir = bind().data(cont).updateAll() != 0 ? 0 : 99;
+			
 		}
-		return bind().data(cont).updateAll() != 0 ? 0 : 99;
+		catch(Exception e){
+			System.out.println("content.setGroup:ogid:" + e.getMessage());
+			ir = 99;
+		}
+		return ir;
 	}
 
 	public String page(int idx, int pageSize) {
-		JSONArray array = bind().page(idx, pageSize);
-		JSONArray array2 = dencode(array);
-		JSONObject object = new JSONObject();
-		object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
-		object.put("currentPage", idx);
-		object.put("pageSize", pageSize);
-		object.put("data", join(getImg(array2)));
+		JSONObject object = null;
+		try{
+			object = new JSONObject();
+			JSONArray array = bind().page(idx, pageSize);
+			JSONArray array2 = dencode(array);
+			object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
+			object.put("currentPage", idx);
+			object.put("pageSize", pageSize);
+			object.put("data", join(getImg(array2)));
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+		}
 		return resultMessage(object);
 	}
 
 	public String page(int idx, int pageSize, JSONObject content) {
-		System.out.println("idx:"+idx+",pageSize:"+pageSize+",content:"+content);
-		JSONObject object = new JSONObject();
-		if (content == null&&(" ").equals(content)) {
-			return resultMessage(0, "");
-		}
-		for (Object object2 : content.keySet()) {
-			if (content.containsKey("_id")) {
-				bind().eq("_id", new ObjectId(content.get("_id").toString()));
+		JSONObject object = null;
+		if( content != null  ){
+			System.out.println("idx:"+idx+",pageSize:"+pageSize+",content:"+content);
+			object = new JSONObject();
+			try{
+				for (Object object2 : content.keySet()) {
+					if (content.containsKey("_id")) {
+						bind().eq("_id", new ObjectId(content.get("_id").toString()));
+					}
+					bind().eq(object2.toString(), content.get(object2.toString()));
+				}
+				JSONArray array = bind().dirty().desc("time").page(idx, pageSize);
+				JSONArray array2 = dencode(array);
+				object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
+				object.put("currentPage", idx);
+				object.put("pageSize", pageSize);
+				object.put("data", join(getImg(array2)));
 			}
-			bind().eq(object2.toString(), content.get(object2.toString()));
+			catch(Exception e){
+				nlogger.logout(e);
+				object = null;
+			}
 		}
-		JSONArray array = bind().dirty().desc("time").page(idx, pageSize);
-		JSONArray array2 = dencode(array);
-		object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
-		object.put("currentPage", idx);
-		object.put("pageSize", pageSize);
-		object.put("data", join(getImg(array2)));
 		return resultMessage(object);
 	}
 
@@ -234,12 +300,14 @@ public class ContentModel {
 		}
 //		JSONObject object = bind().eq("_id", new ObjectId(oid)).find();
 		JSONObject object = findByOid(oid);
-		JSONObject preobj = find(object.get("time").toString(), "<");
-		JSONObject nextobj = find(object.get("time").toString(), ">");
-		object.put("previd", getpnArticle(preobj).get("id"));
-		object.put("prevname", getpnArticle(preobj).get("name"));
-		object.put("nextid", getpnArticle(nextobj).get("id"));
-		object.put("nextname", getpnArticle(nextobj).get("name"));
+		if( object != null ){
+			JSONObject preobj = find(object.get("time").toString(), "<");
+			JSONObject nextobj = find(object.get("time").toString(), ">");
+			object.put("previd", getpnArticle(preobj).get("id"));
+			object.put("prevname", getpnArticle(preobj).get("name"));
+			object.put("nextid", getpnArticle(nextobj).get("id"));
+			object.put("nextname", getpnArticle(nextobj).get("name"));
+		}
 		return join(getImg(object));
 	}
 
@@ -249,26 +317,50 @@ public class ContentModel {
 	}
 
 	public JSONArray searchByUid(String uid) {
-		JSONArray array = bind().eq("ownid", uid).limit(30).select();
+		JSONArray array = null;
+		try{
+			array = bind().eq("ownid", uid).limit(30).select();
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+		}
 		return array;
 	}
 
 	public int updatesort(String oid, int sortNo) {
+		int i = 99;
 		JSONObject object = new JSONObject();
 		object.put("sort", sortNo);
-		return bind().eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		try{
+			i = bind().eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+			i = 99;
+		}
+		return i;
 	}
 
 	public JSONArray search(JSONObject condString) {
-		if (condString.containsKey("time")) {
+		JSONArray ary = null;
+		if( condString != null ){
+			try{
+				if (condString.containsKey("time")) {
 
+				}
+				bind().and();
+				for (Object object2 : condString.keySet()) {
+					bind().like(object2.toString(), condString.get(object2.toString()));
+				}
+				JSONArray array = bind().limit(30).select();
+				ary = join(getImg(array));
+			}
+			catch(Exception e){
+				nlogger.logout(e);
+				ary = null;
+			}
 		}
-		bind().and();
-		for (Object object2 : condString.keySet()) {
-			bind().like(object2.toString(), condString.get(object2.toString()));
-		}
-		JSONArray array = bind().limit(30).select();
-		return join(getImg(array));
+		return ary; 
 	}
 
 	// 获取积分价值条件？？
@@ -285,9 +377,15 @@ public class ContentModel {
 
 	// 根据栏目id查询文章
 	public JSONArray findByGroupID(String ogid) {
-		JSONArray array = bind().desc("time").eq("ogid", ogid).limit(20).select();
-		array = getImg(array);
-		return join(array);
+		JSONArray array = null;
+		try{
+			array = join(getImg(bind().desc("time").eq("ogid", ogid).limit(20).select()));
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+			array = null;
+		}
+		return array;
 	}
 
 	public JSONArray findByGroupID(String ogid, int no) {
@@ -298,49 +396,92 @@ public class ContentModel {
 
 	// 修改tempid
 	public int setTempId(String oid, String tempid) {
-		JSONObject object = new JSONObject();
-		object.put("tempid", tempid);
-		return bind().eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		int i = 99;
+		JSONObject object = null;
+		try{
+			object = new JSONObject();
+			object.put("tempid", tempid);
+			i= bind().eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		}
+		catch(Exception e){
+			i = 99;
+			nlogger.logout(e);
+		}
+		return i;
 	}
 
 	// 修改fatherid，同时删除ogid（ogid=""）
 	public int setfatherid(String oid, String fatherid) {
-		JSONObject object = new JSONObject();
-		if (fatherid == null) {
-			fatherid = "0";
-		} else {
-			object.put("ogid", "");
+		int i = 99;
+		JSONObject object = null;
+		try{
+			object = new JSONObject();
+			if (fatherid == null) {
+				fatherid = "0";
+			} else {
+				object.put("ogid", "");
+			}
+			object.put("fatherid", fatherid);
+			i = bind().eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
 		}
-		object.put("fatherid", fatherid);
-		return bind().eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		catch(Exception e){
+			i = 99;
+			nlogger.logout(e);
+		}
+		return i;
 	}
 
 	// 修改对象密级
 	public int setslevel(String oid, String slevel) {
-		JSONObject object = new JSONObject();
-		object.put("tempid", slevel);
-		return bind().eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		int i = 99;
+		JSONObject object = null;
+		try{
+			object = new JSONObject();
+			object.put("tempid", slevel);
+			i = bind().eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+			i = 99;
+		}
+		return i;
 	}
 
 	// 文章审核 state：0 草稿，1 待审核，2 审核通过 3 审核不通过
 	public int review(String oid, String managerid, String state) {
-		JSONObject object = new JSONObject();
-		object.put("manageid", managerid);
-		object.put("state", state);
-		return bind().eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		int i =99;
+		JSONObject object = null;
+		try{
+			object = new JSONObject();
+			object.put("manageid", managerid);
+			object.put("state", state);
+			i = bind().eq("_id", new ObjectId(oid)).data(object).update() != null ? 0 : 99;
+		}
+		catch(Exception e){
+			nlogger.logout(e);
+			i = 99;
+		}
+		return i;
 	}
 
 	public int delete(String[] arr) {
-		bind().or();
-		for (int i = 0; i < arr.length; i++) {
-			bind().eq("_id", new ObjectId(arr[i]));
+		int ir = 99;
+		try{
+			bind().or();
+			for (int i = 0; i < arr.length; i++) {
+				bind().eq("_id", new ObjectId(arr[i]));
+			}
+			ir = bind().deleteAll() == arr.length ? 0 : 99;
 		}
-		return bind().deleteAll() == arr.length ? 0 : 99;
+		catch(Exception e){
+			ir = 99;
+			nlogger.logout(e);
+		}
+		return ir;
 	}
 
 	public JSONArray find(String ogid, int no) {
-		JSONArray array = bind().eq("ogid", ogid).limit(no).field("image,desp").select();
-		return array;
+		return bind().eq("ogid", ogid).limit(no).field("image,desp").select();
 	}
 
 	public JSONArray find(String[] ogid, int no) {
@@ -396,18 +537,34 @@ public class ContentModel {
 
 	// 根据自定义条件进行统计
 	public String getCount(JSONObject object) {
-		for (Object obj : object.keySet()) {
-			bind().like(obj.toString(), object.get(obj.toString()).toString());
+		String rs = null;
+		if( object != null ){
+			try{
+				for (Object obj : object.keySet()) {
+					bind().like(obj.toString(), object.get(obj.toString()).toString());
+				}
+				rs = String.valueOf(bind().count());
+			}
+			catch(Exception e){
+				nlogger.logout(e);
+				rs = null;
+			}
 		}
-		return resultMessage(0, String.valueOf(bind().count()));
+		return resultMessage(0, rs);
 	}
 
 	// 获取图片内容
 	private JSONObject getImg(JSONObject object) {
-		String imgURL = object.get("image").toString();
-		if (imgURL.contains("File")) {
-			imgURL = getAppIp("file").split("/")[1] + imgURL;
-			object.put("image", imgURL);
+		try{
+			String imgURL = object.get("image").toString();
+			if (imgURL.contains("File")) {
+				imgURL = getAppIp("file").split("/")[1] + imgURL;
+				object.put("image", imgURL);
+			}
+		}
+		catch( Exception e ){
+			System.out.println("getImg数据错误:" + e.getMessage());
+			object = null;
 		}
 		return object;
 	}
@@ -416,50 +573,74 @@ public class ContentModel {
 		if (array.size() == 0) {
 			return array;
 		}
-		JSONArray array2 = new JSONArray();
-		for (int i = 0, len = array.size(); i < len; i++) {
-			JSONObject object = (JSONObject) array.get(i);
-			if (object.containsKey("image")) {
-				String imgURL = object.get("image").toString();
-				if (imgURL.contains("upload")) {
-					System.out.println(getAppIp("file"));
-					imgURL = "http://" + getAppIp("file").split("/")[1] + imgURL;
-					object.put("image", imgURL);
+		JSONArray array2 = null;
+		try{
+			JSONObject object;
+			String imgURL;
+			array2 = new JSONArray();
+			for (int i = 0, len = array.size(); i < len; i++) {
+				object = (JSONObject) array.get(i);
+				if (object.containsKey("image")) {
+					imgURL = object.get("image").toString();
+					if (imgURL.contains("upload")) {
+						System.out.println(getAppIp("file"));
+						imgURL = "http://" + getAppIp("file").split("/")[1] + imgURL;
+						object.put("image", imgURL);
+					}
 				}
+				array2.add(object);
 			}
-			array2.add(object);
 		}
-
+		catch(Exception e){
+			System.out.println("content.getImg-Array:" + e.getMessage() );
+			array2 = null;
+		}
 		return array2;
 	}
 
 	private JSONArray join(JSONArray array) {
-		JSONArray arrays = new JSONArray();
-		for (int i = 0, len = array.size(); i < len; i++) {
-			JSONObject object = (JSONObject) array.get(i);
-			if (object.get("tempid").toString().equals("0")) {
-				object.put("tempContent", null);
-			} else {
-				String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
-						appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:" + object.get("tempid").toString(),
-						null, "").toString();
-				object.put("tempContent", temp);
+		JSONArray arrays = null;
+		try{
+			JSONObject object;
+			String temp;
+			arrays =  new JSONArray();
+			for (int i = 0, len = array.size(); i < len; i++) {
+				object = (JSONObject) array.get(i);
+				if (object.get("tempid").toString().equals("0")) {
+					object.put("tempContent", null);
+				} else {
+					temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
+							appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:" + object.get("tempid").toString(),
+							null, "").toString();
+					object.put("tempContent", temp);
+				}
+				arrays.add(object);
 			}
-			arrays.add(object);
+		}
+		catch(Exception e){
+			System.out.println("content.join:" + e.getMessage() );
+			arrays = null;
 		}
 		return arrays;
 	}
 
 	private JSONObject join(JSONObject object) {
-		if (object.get("tempid").toString().equals("0")) {
-			object.put("tempContent", null);
-		} else {
-			String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
-					appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:" + object.get("tempid").toString(), null,
-					"").toString();
-			object.put("tempContent", temp);
+		JSONObject tmpJSON = null;
+		try{
+			tmpJSON = object;
+			if (tmpJSON.get("tempid").toString().equals("0")) {
+				tmpJSON.put("tempContent", null);
+			} else {
+				String temp = appsProxy.proxyCall(getAppIp("host").split("/")[0],
+						appsProxy.appid() + "/19/TemplateContext/TempFindByTid/s:" + tmpJSON.get("tempid").toString(), null,
+						"").toString();
+				tmpJSON.put("tempContent", temp);
+			}
 		}
-		return object;
+		catch(Exception e){
+			tmpJSON = null;
+		}
+		return tmpJSON;
 	}
 
 	public String showstate(String state) {
@@ -513,11 +694,17 @@ public class ContentModel {
 	}
 
 	public String resultMessage(JSONObject object) {
+		if( object == null ){
+			object = new JSONObject();
+		}
 		_obj.put("records", object);
 		return resultMessage(0, _obj.toString());
 	}
 
 	public String resultMessage(JSONArray array) {
+		if( array == null ){
+			array = new JSONArray();
+		}
 		_obj.put("records", array);
 		return resultMessage(0, _obj.toString());
 	}
