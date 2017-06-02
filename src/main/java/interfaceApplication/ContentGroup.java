@@ -19,7 +19,6 @@ public class ContentGroup {
 	private HashMap<String, Object> defcol = new HashMap<>();
 
 	public ContentGroup() {
-		// userId = execRequest.getChannelValue("Userid").toString();
 
 		defcol.put("ownid", 0);
 		defcol.put("fatherid", 0);
@@ -70,8 +69,8 @@ public class ContentGroup {
 		int codes = -1;
 		List<String> list = new ArrayList<>();
 		JSONArray arrays = group.getColumn(ogid);
-		if( arrays != null ){
-			try{
+		if (arrays != null) {
+			try {
 				while (arrays.size() > 0) {
 					List<String> temp = new ArrayList<>();
 					temp = group.getList(arrays);
@@ -79,10 +78,11 @@ public class ContentGroup {
 					list.addAll(temp);
 				}
 				list.add(ogid);
-				String tips = appsProxy.proxyCall("192.168.98.130",
-						appsProxy.appid()+ "/15/content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
+				String tips = appsProxy
+						.proxyCall(group.getHost(0),
+								appsProxy.appid() + "/15/content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
 						.toString();
-				if( tips != null && !tips.equals("") ){
+				if (tips != null && !tips.equals("")) {
 					code = (long) JSONHelper.string2json(tips).get("errorcode");
 					codes = Integer.parseInt(String.valueOf(code));
 					if (codes == 0) {
@@ -93,8 +93,7 @@ public class ContentGroup {
 						}
 					}
 				}
-			}
-			catch(Exception e){
+			} catch (Exception e) {
 				codes = -1;
 				nlogger.logout(e);
 			}
@@ -184,11 +183,11 @@ public class ContentGroup {
 	@SuppressWarnings("unchecked")
 	public String getPreColumn(String ogid) {
 		List<JSONObject> list = null;
-		try{
-			list = new ArrayList<>(); 
+		try {
+			list = new ArrayList<>();
 			JSONObject object = group.find(ogid);
 			JSONObject obj = new JSONObject();
-			
+
 			String fatherid = object.get("fatherid").toString();
 			JSONObject objID = (JSONObject) object.get("_id");
 			obj.put("_id", objID.get("$oid").toString());
@@ -201,11 +200,16 @@ public class ContentGroup {
 
 			}
 			Collections.reverse(list); // list倒序排列
-		}
-		catch(Exception e){
+		} catch (Exception e) {
 			nlogger.logout(e);
 			list = null;
 		}
 		return list != null ? group.resultMessage(0, JSONHelper.string2array(list.toString()).toString()) : "";
 	}
+
+	// 设置栏目管理员 userid为用户表 _id
+	public String setManage(String ogid, String userid) {
+		return group.setColumManage(ogid, userid);
+	}
+
 }

@@ -1,11 +1,9 @@
 package interfaceApplication;
 
-import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Properties;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -22,10 +20,8 @@ import security.codec;
 public class Content {
 	private ContentModel content = new ContentModel();
 	private HashMap<String, Object> defmap = new HashMap<>();
-	// private String userId = "";
 
 	public Content() {
-		// userId = execRequest.getChan1
 		defmap.put("subName", null);
 		defmap.put("image", "1,2");
 		defmap.put("ownid", 0);
@@ -70,6 +66,8 @@ public class Content {
 		JSONObject infos = JSONHelper.string2json(contents);
 		if( infos != null ){
 			try{
+//				String content = codec.DecodeHtmlTag(infos.get("content").toString());
+//				infos.put("content", codec.encodebase64(content));
 				infos.put("content", codec.DecodeHtmlTag(infos.get("content").toString()));
 				if (infos.containsKey("image")) {
 					String image = infos.get("image").toString();
@@ -85,7 +83,7 @@ public class Content {
 				}
 			}
 			catch( Exception e ){
-				e.printStackTrace();
+				nlogger.logout(e);
 			}
 		}
 		return content.resultMessage(content.UpdateArticle(oid, infos),"文章更新成功");
@@ -163,11 +161,6 @@ public class Content {
 		return content.resultMessage(
 				content.search(JSONHelper.string2json(condString)));
 	}
-
-//	public String Search(String condString) {
-//		return content.resultMessage(
-//				content.search(JSONHelper.string2json(condString)));
-//	}
 
 	/**
 	 * 分页
@@ -329,27 +322,13 @@ public class Content {
 			String message = JSONHelper.string2json(findArticle(oid)).get("message").toString();
 			String records = JSONHelper.string2json(message).get("records").toString();
 			String ogid = JSONHelper.string2json(records).get("ogid").toString();
-			// 根据栏目id查询栏目信息
-			// String prevCol = execRequest
-			// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + ogid, null)
-			// .toString();
-			String prevCol = appsProxy.proxyCall(callhost(),
-					String.valueOf(appsProxy.appid())
-							+ "/15/ContentGroup/getPrevCol/s:" + ogid,
-					null, "").toString();
+			String prevCol = content.getPrev(ogid);
 			String fatherid = JSONHelper.string2json(prevCol).get("fatherid")
 					.toString();
 			list = content.getName(list, JSONHelper.string2json(prevCol));
 			// 根据fatherid获取上一级栏目，直到fatherid=0
 			while (!"0".equals(fatherid)) {
-				// prevCol = execRequest
-				// ._run("GrapeContent/ContentGroup/getPrevCol/s:" + fatherid,
-				// null)
-				// .toString();
-				prevCol = appsProxy.proxyCall(callhost(),
-						String.valueOf(appsProxy.appid())
-								+ "/15/ContentGroup/getPrevCol/s:" + fatherid,
-						null, "").toString();
+				prevCol = content.getPrev(ogid);
 				fatherid = JSONHelper.string2json(prevCol).get("fatherid")
 						.toString();
 				list = content.getName(list, JSONHelper.string2json(prevCol));
@@ -367,14 +346,10 @@ public class Content {
 	public String getContent(String ogid, int no) {
 		String ids = null;
 		try{
-			String tips = appsProxy.proxyCall(callhost(),
+			String tips = appsProxy.proxyCall(content.getPrev(ogid),
 					String.valueOf(appsProxy.appid())
 							+ "/15/ContentGroup/getColumnByFid/s:" + ogid,
 					null, "").toString();
-			// execRequest
-			// ._run("GrapeContent/ContentGroup/getColumnByFid/s:" + ogid,
-			// null)
-			// .toString();
 			String message = JSONHelper.string2json(tips).get("message").toString();
 			String records = JSONHelper.string2json(message).get("records")
 					.toString();
@@ -408,20 +383,5 @@ public class Content {
 	// 根据条件进行统计
 	public String getCount(String info) {
 		return content.getCount(JSONHelper.string2json(info));
-	}
-	
-	private String callhost(){
-		return getAppIp("host").split("/")[0];
-	}
-	private String getAppIp(String key) {
-		String value = "";
-		try {
-			Properties pro = new Properties();
-			pro.load(new FileInputStream("URLConfig.properties"));
-			value = pro.getProperty(key);
-		} catch (Exception e) {
-			value = "";
-		}
-		return value;
 	}
 }
