@@ -15,9 +15,9 @@ import org.json.simple.JSONObject;
 
 import apps.appsProxy;
 import authority.privilige;
+import authority.userDBHelper;
 import cache.redis;
 import database.db;
-import esayhelper.DBHelper;
 import esayhelper.JSONHelper;
 import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
@@ -26,11 +26,11 @@ import rpc.execRequest;
 
 public class ContentGroupModel {
 	private static formHelper _form;
-	private static DBHelper dbcontent;
+	private static userDBHelper dbcontent;
 	private JSONObject _obj = new JSONObject();
 
 	static {
-		dbcontent = new DBHelper(appsProxy.configValue().get("db").toString(), "objectGroup");
+		dbcontent = new userDBHelper("objectGroup",(String)execRequest.getChannelValue("sid"));
 		_form = dbcontent.getChecker();
 	}
 
@@ -122,7 +122,7 @@ public class ContentGroupModel {
 					if ("_id".equals(object2.toString())) {
 						bind().eq("_id", new ObjectId(object.get("_id").toString()));
 					}
-					bind().eq(object2.toString(), object.get(object2.toString()));
+					bind().like(object2.toString(), object.get(object2.toString()));
 				}
 				array = bind().limit(20).select();
 			} catch (Exception e) {
@@ -154,7 +154,7 @@ public class ContentGroupModel {
 							.page(idx, pageSize);
 				}
 				if (roleplv == 0) { // 游客
-					array = bind().limit(20).select();
+					array = bind().page(idx, pageSize);
 				}
 				object = new JSONObject();
 				object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
@@ -174,7 +174,7 @@ public class ContentGroupModel {
 		JSONObject obj = getSessPlv(execRequest.getChannelValue("sid"));
 		JSONObject object = null;
 		if (GroupInfo != null) {
-			if (obj != null) {
+//			if (obj != null) {
 				try {
 					JSONArray array = new JSONArray();
 					for (Object object2 : GroupInfo.keySet()) {
@@ -198,7 +198,7 @@ public class ContentGroupModel {
 					}
 					// 普通用户
 					if (roleplv == 0) { // 游客
-						array = bind().limit(20).select();
+						array = bind().page(idx, pageSize);
 					}
 					object = new JSONObject();
 					object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
@@ -209,7 +209,7 @@ public class ContentGroupModel {
 					nlogger.logout(e);
 					object = null;
 				}
-			}
+//			}
 		}
 		return resultMessage(object);
 	}

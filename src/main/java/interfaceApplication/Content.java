@@ -14,17 +14,26 @@ import esayhelper.StringHelper;
 import esayhelper.TimeHelper;
 import model.ContentModel;
 import nlogger.nlogger;
+import rpc.execRequest;
 import security.codec;
+import session.session;
 
 @SuppressWarnings("unchecked")
 public class Content {
 	private ContentModel content = new ContentModel();
 	private HashMap<String, Object> defmap = new HashMap<>();
+	private static session session;
+	private JSONObject UserInfo = new JSONObject();
 
+	static{
+		session = new session();
+	}
+	
 	public Content() {
+		UserInfo = session.getSession((String) execRequest.getChannelValue("sid"));
 		defmap.put("subName", null);
-		defmap.put("image", "1,2");
-		defmap.put("ownid", 0);
+		defmap.put("image", "");
+		defmap.put("ownid", appsProxy.appid());
 		defmap.put("manageid", "");
 		defmap.put("content", "");
 		defmap.put("fatherid", 0);
@@ -40,9 +49,10 @@ public class Content {
 		defmap.put("readCount", 0);
 		defmap.put("thirdsdkid", "");
 		defmap.put("tempid", 0);
-		defmap.put("uplv", 2000);
-		defmap.put("rplv", 1000);
-		defmap.put("dplv", 3000);
+		defmap.put("wbid", UserInfo!=null?UserInfo.get("currentWeb").toString():"");
+		defmap.put("u", 2000);
+		defmap.put("r", 1000);
+		defmap.put("d", 3000);
 		defmap.put("time", TimeHelper.nowMillis() + "");
 	}
 
@@ -109,13 +119,21 @@ public class Content {
 		return content.findnew();
 	}
 
+	//获取最新公开的指定数量的信息
+	public String FindOpen(int size){
+		return content.findnew(size);
+	}
 	/**
 	 * 根据oid显示文章 同时显示上一篇文章id，名称 下一篇文章id，名称
 	 * 
 	 * @return
 	 */
 	public String findArticle(String oid) {
-		return content.resultMessage(content.select(oid));
+		JSONObject object = content.select(oid);
+		if (object==null) {
+			return content.resultMessage(7, "");
+		}
+		return content.resultMessage(object);
 	}
 
 	/**
@@ -126,14 +144,6 @@ public class Content {
 	 * @return
 	 */
 	public String SetGroup(String oid, String ogid) {
-		// String uPLV = content.select(oid).get("uplv").toString();
-		// String tip = execRequest
-		// ._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV + "/s:" + userId,
-		// null)
-		// .toString();
-		// if (!"0".equals(tip)) {
-		// return content.resultMessage(8, "没有编辑权限");
-		// }
 		return content.resultMessage(content.setGroup(oid, ogid), "设置内容组成功");
 	}
 
@@ -199,14 +209,6 @@ public class Content {
 	 * @return 显示修改之前的数据
 	 */
 	public String sort(String oid, int sortNo) {
-		// String uPLV = content.select(oid).get("uplv").toString();
-		// String tip = execRequest
-		// ._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV + "/s:" + userId,
-		// null)
-		// .toString();
-		// if (!"0".equals(tip)) {
-		// return content.resultMessage(8, "没有编辑权限");
-		// }
 		return content.resultMessage(content.updatesort(oid, sortNo),
 				"排序值修改成功");
 	}
@@ -218,12 +220,6 @@ public class Content {
 	 * @return
 	 */
 	public String PublishArticle(String ArticleInfo) {
-		// 该用户是否拥有新增权限
-		// String tip = execRequest
-		// ._run("GrapeAuth/Auth/InsertPLV/s:" + userId, null).toString();
-		// if (!"0".equals(tip)) {
-		// return content.resultMessage(7, "没有新增权限");
-		// }
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
 		if( object != null ){
 			object = content.AddMap(defmap, object);
