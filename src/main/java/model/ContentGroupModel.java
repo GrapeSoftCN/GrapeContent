@@ -18,31 +18,52 @@ import authority.privilige;
 import authority.userDBHelper;
 import cache.redis;
 import database.db;
+import esayhelper.DBHelper;
 import esayhelper.JSONHelper;
 import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
 import nlogger.nlogger;
 import rpc.execRequest;
+import session.session;
 
 public class ContentGroupModel {
 	private static formHelper _form;
 	private static userDBHelper dbcontent;
+	private static DBHelper content;
 	private JSONObject _obj = new JSONObject();
+	private static session session;
+	private JSONObject UserInfo = new JSONObject();
+	private String sid = "";
 
 	static {
-		dbcontent = new userDBHelper("objectGroup",(String)execRequest.getChannelValue("sid"));
+		session = new session();
+		dbcontent = new userDBHelper("objectGroup", (String) execRequest.getChannelValue("sid"));
 		_form = dbcontent.getChecker();
 	}
 
 	public ContentGroupModel() {
-		_form.putRule("name", formHelper.formdef.notNull);
-		_form.putRule("type", formHelper.formdef.notNull);
+		sid = (String) execRequest.getChannelValue("sid");
+		if (sid != null) {
+			UserInfo = session.getSession(sid);
+		}
 	}
 
 	private db bind() {
-		return dbcontent.bind(appsProxy.appid() + "");
+		if (sid == null) {
+			content = new DBHelper(appsProxy.configValue().get("db").toString(), "objectGroup");
+			_form = content.getChecker();
+			return content.bind(String.valueOf(appsProxy.appid()));
+		}
+		dbcontent = new userDBHelper("objectGroup", sid);
+		_form = dbcontent.getChecker();
+		return dbcontent.bind(String.valueOf(appsProxy.appid()));
 	}
 
+	private formHelper getForm() {
+		_form.putRule("name", formHelper.formdef.notNull);
+		_form.putRule("type", formHelper.formdef.notNull);
+		return _form;
+	}
 	// private db bind() {
 	// return new userDBHelper("objectGroup",
 	// (String)execRequest.getChannelValue("sid")).bind(String.valueOf(appsProxy.appid()));
@@ -73,7 +94,7 @@ public class ContentGroupModel {
 		if (groupinfo == null) {
 			return resultMessage(0, "内容组插入失败");
 		}
-		if (!_form.checkRuleEx(groupinfo)) {
+		if (!getForm().checkRuleEx(groupinfo)) {
 			return resultMessage(2, "");
 		}
 		String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
@@ -121,8 +142,9 @@ public class ContentGroupModel {
 				for (Object object2 : object.keySet()) {
 					if ("_id".equals(object2.toString())) {
 						bind().eq("_id", new ObjectId(object.get("_id").toString()));
+					}else{
+						bind().like(object2.toString(), object.get(object2.toString()));
 					}
-					bind().like(object2.toString(), object.get(object2.toString()));
 				}
 				array = bind().limit(20).select();
 			} catch (Exception e) {
@@ -135,82 +157,76 @@ public class ContentGroupModel {
 
 	@SuppressWarnings("unchecked")
 	public String page(int idx, int pageSize) {
-		JSONObject obj = getSessPlv(execRequest.getChannelValue("sid"));
-		JSONObject object = null;
-		if (obj != null) {
-			try {
-				JSONArray array = new JSONArray();
-				// 获取角色权限
-				int roleplv = Integer.parseInt(obj.get("rolePlv").toString());
-				if (roleplv > 10000) {
-					array = bind().page(idx, pageSize);
+		if (UserInfo == null) {
+			return resultMessage(7, "");
+		}
+		int rolePlv = getRoleSign();
+		JSONObject object = new JSONObject();
+		try {
+			JSONArray array = new JSONArray();
+			// 获取角色权限
+			if (rolePlv == 5 || rolePlv == 4) {
+				array = bind().page(idx, pageSize);
+			}else if (rolePlv == 3) {
+				array = bind().eq("wbid", (String) UserInfo.get("currentWeb")).page(idx, pageSize);
+			}else{
+				if (UserInfo!=null) {
+					JSONObject object2 = (JSONObject) UserInfo.get("_id");
+					array = bind().eq("ownid", object2.get("$oid").toString()).page(idx, pageSize);
+				}else{
+					array = bind().eq("slevel", 0).page(idx, pageSize);
 				}
-				if (roleplv > 5000 && roleplv <= 10000) {
-					array = bind().eq("wbid", (String) obj.get("currentWeb")).page(idx, pageSize);
-				}
-				if (roleplv > 3000 && roleplv <= 5000) {
-					JSONObject oid = (JSONObject) obj.get("_id");
-					array = bind().like("ownid", oid.get("$oid").toString()).eq("wbid", (String) obj.get("currentWeb"))
-							.page(idx, pageSize);
-				}
-				if (roleplv == 0) { // 游客
-					array = bind().page(idx, pageSize);
-				}
-				object = new JSONObject();
-				object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
-				object.put("currentPage", idx);
-				object.put("pageSize", pageSize);
-				object.put("data", join(array));
-			} catch (Exception e) {
-				nlogger.logout(e);
-				object = null;
 			}
+			object = new JSONObject();
+			object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
+			object.put("currentPage", idx);
+			object.put("pageSize", pageSize);
+			object.put("data", join(array));
+		} catch (Exception e) {
+			nlogger.logout(e);
+			object.put("totalSize", 0);
+			object.put("currentPage", idx);
+			object.put("pageSize", pageSize);
+			object.put("data", new JSONArray());
 		}
 		return resultMessage(object);
 	}
 
 	@SuppressWarnings("unchecked")
 	public String page(int idx, int pageSize, JSONObject GroupInfo) {
-		JSONObject obj = getSessPlv(execRequest.getChannelValue("sid"));
-		JSONObject object = null;
-		if (GroupInfo != null) {
-//			if (obj != null) {
-				try {
-					JSONArray array = new JSONArray();
-					for (Object object2 : GroupInfo.keySet()) {
-						if (GroupInfo.containsKey("_id")) {
-							bind().eq("_id", new ObjectId(GroupInfo.get("_id").toString()));
-						}
-						bind().eq(object2.toString(), GroupInfo.get(object2.toString()));
-					}
-					// 获取角色权限
-					int roleplv = Integer.parseInt(obj.get("rolePlv").toString());
-					if (roleplv > 10000) { // 系统管理员
-						array = bind().page(idx, pageSize);
-					}
-					if (roleplv > 5000 && roleplv <= 10000) { // 网站管理员
-						array = bind().eq("wbid", (String) obj.get("currentWeb")).page(idx, pageSize);
-					}
-					if (roleplv > 3000 && roleplv <= 5000) { // 栏目管理员
-						JSONObject oid = (JSONObject) obj.get("_id");
-						array = bind().like("ownid", oid.get("$oid").toString())
-								.eq("wbid", (String) obj.get("currentWeb")).page(idx, pageSize);
-					}
-					// 普通用户
-					if (roleplv == 0) { // 游客
-						array = bind().page(idx, pageSize);
-					}
-					object = new JSONObject();
-					object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
-					object.put("currentPage", idx);
-					object.put("pageSize", pageSize);
-					object.put("data", join(array));
-				} catch (Exception e) {
-					nlogger.logout(e);
-					object = null;
-				}
-//			}
+		db db = bind();
+		JSONObject object = new JSONObject();
+		JSONArray array = new JSONArray();
+		if (UserInfo == null) {
+			return resultMessage(7, "");
 		}
+		try {
+			if (GroupInfo != null) {
+				for (Object object2 : GroupInfo.keySet()) {
+					if (GroupInfo.containsKey("_id")) {
+						db.eq("_id", new ObjectId(GroupInfo.get("_id").toString()));
+					}
+					db.eq(object2.toString(), GroupInfo.get(object2.toString()));
+				}
+				// 获取角色权限
+				int roleSign = getRoleSign();
+				// 获取角色权限
+				if (roleSign == 5 || roleSign == 4) {
+					array = db.page(idx, pageSize);
+				}
+				if (roleSign == 3) {
+					array = db.eq("wbid", (String) UserInfo.get("currentWeb")).page(idx, pageSize);
+				}
+				object.put("totalSize", (int) Math.ceil((double) array.size() / pageSize));
+			}
+			object.put("totalSize", 0);
+		} catch (Exception e) {
+			nlogger.logout(e);
+			object.put("totalSize", 0);
+		}
+		object.put("currentPage", idx);
+		object.put("pageSize", pageSize);
+		object.put("data", array);
 		return resultMessage(object);
 	}
 
@@ -222,7 +238,8 @@ public class ContentGroupModel {
 			object = new JSONObject();
 			object.put("fatherid", fatherid);
 			i = UpdateGroup(ogid, object);
-//			i = bind().eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+			// i = bind().eq("_id", new ObjectId(ogid)).data(object).update() !=
+			// null ? 0 : 99;
 		} catch (Exception e) {
 			nlogger.logout(e);
 			i = 99;
@@ -238,7 +255,8 @@ public class ContentGroupModel {
 			object = new JSONObject();
 			object.put("sort", num);
 			i = UpdateGroup(ogid, object);
-//			i = bind().eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+			// i = bind().eq("_id", new ObjectId(ogid)).data(object).update() !=
+			// null ? 0 : 99;
 		} catch (Exception e) {
 			nlogger.logout(e);
 			i = 99;
@@ -254,7 +272,8 @@ public class ContentGroupModel {
 			object = new JSONObject();
 			object.put("tempid", tempid);
 			i = UpdateGroup(ogid, object);
-//			i = bind().eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+			// i = bind().eq("_id", new ObjectId(ogid)).data(object).update() !=
+			// null ? 0 : 99;
 		} catch (Exception e) {
 			i = 99;
 			nlogger.logout(e);
@@ -270,7 +289,8 @@ public class ContentGroupModel {
 			object = new JSONObject();
 			object.put("slevel", slevel);
 			i = UpdateGroup(ogid, object);
-//			i = bind().eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+			// i = bind().eq("_id", new ObjectId(ogid)).data(object).update() !=
+			// null ? 0 : 99;
 		} catch (Exception e) {
 			nlogger.logout(e);
 			i = 99;
@@ -297,7 +317,7 @@ public class ContentGroupModel {
 		return (name.length() > 0 && name.length() <= 20);
 	}
 
-	//根据上级栏目id
+	// 根据上级栏目id
 	public String findByFatherid(String fatherid) {
 		String name = null;
 		JSONArray array = bind().eq("fatherid", fatherid).select();
@@ -308,7 +328,7 @@ public class ContentGroupModel {
 		return name;
 	}
 
-	//根据上级栏目id，获取该栏目所有子栏目数据
+	// 根据上级栏目id，获取该栏目所有子栏目数据
 	public String getColumnByFid(String ogid) {
 		return resultMessage(bind().eq("fatherid", ogid).select());
 	}
@@ -444,7 +464,8 @@ public class ContentGroupModel {
 				}
 				object.put("ownid", userid);
 				code = UpdateGroup(ogid, object);
-//				code = bind().eq("_id", new ObjectId(ogid)).data(object).update() != null ? 0 : 99;
+				// code = bind().eq("_id", new
+				// ObjectId(ogid)).data(object).update() != null ? 0 : 99;
 			} catch (Exception e) {
 				nlogger.logout(e);
 				code = 99;
@@ -453,22 +474,44 @@ public class ContentGroupModel {
 		return resultMessage(code, "设置栏目管理员成功");
 	}
 
-	// 获取会话信息数据
-	@SuppressWarnings("unchecked")
-	private JSONObject getSessPlv(Object object) {
-		JSONObject object2 = null;
-		try {
-			object2 = new JSONObject();
-			if (object != null) {
-				object2.put("rolePlv", getPrivil(object.toString()).getRolePV());
-			} else {
-				object2.put("rolePlv", 0);
+	/**
+	 * 根据角色plv，获取角色级别
+	 * 
+	 * @project GrapeSuggest
+	 * @package interfaceApplication
+	 * @file Suggest.java
+	 * 
+	 * @return
+	 *
+	 */
+	private int getRoleSign() {
+		int roleSign = 0; // 游客
+		String sid = (String) execRequest.getChannelValue("sid");
+		if (sid != null) {
+			try {
+				privilige privil = new privilige(sid);
+				int roleplv = privil.getRolePV();
+				if (roleplv >= 1000 && roleplv < 3000) {
+					roleSign = 1; // 普通用户即企业员工
+				}
+				if (roleplv >= 3000 && roleplv < 5000) {
+					roleSign = 2; // 栏目管理员
+				}
+				if (roleplv >= 5000 && roleplv < 8000) {
+					roleSign = 3; // 企业管理员
+				}
+				if (roleplv >= 8000 && roleplv < 10000) {
+					roleSign = 4; // 监督管理员
+				}
+				if (roleplv >= 10000) {
+					roleSign = 5; // 总管理员
+				}
+			} catch (Exception e) {
+				nlogger.logout(e);
+				roleSign = 0;
 			}
-		} catch (Exception e) {
-			nlogger.logout(e);
-			object2 = null;
 		}
-		return object2;
+		return roleSign;
 	}
 
 	private String getAppIp(String key) {
@@ -507,7 +550,7 @@ public class ContentGroupModel {
 	}
 
 	@SuppressWarnings("unchecked")
-	private String resultMessage(JSONArray array) {
+	public String resultMessage(JSONArray array) {
 		if (array == null) {
 			array = new JSONArray();
 		}
@@ -538,6 +581,9 @@ public class ContentGroupModel {
 			break;
 		case 6:
 			message = "没有删除数据权限，请联系管理员进行权限调整";
+			break;
+		case 7:
+			message = "登录信息已失效";
 			break;
 		default:
 			message = "其他异常";

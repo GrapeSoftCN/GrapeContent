@@ -106,7 +106,7 @@ public class ContentGroup {
 	}
 
 	public String GroupFind(String groupinfo) {
-		return group.resultMessage(0, group.select(groupinfo).toString());
+		return group.resultMessage(group.select(groupinfo));
 	}
 
 	// 设置排序值
@@ -204,7 +204,7 @@ public class ContentGroup {
 			nlogger.logout(e);
 			list = null;
 		}
-		return list != null ? group.resultMessage(0, JSONHelper.string2array(list.toString()).toString()) : "";
+		return list != null ? group.resultMessage(JSONHelper.string2array(list.toString())) : "";
 	}
 
 	// 设置栏目管理员 userid为用户表 _id

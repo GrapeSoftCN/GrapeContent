@@ -17,6 +17,7 @@ import authority.privilige;
 import authority.userDBHelper;
 import cache.redis;
 import database.db;
+import esayhelper.DBHelper;
 import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import esayhelper.formHelper;
@@ -26,26 +27,49 @@ import jodd.util.ArraysUtil;
 import nlogger.nlogger;
 import rpc.execRequest;
 import security.codec;
+import session.session;
 
 @SuppressWarnings("unchecked")
 public class ContentModel {
 	private static userDBHelper dbcontent;
+	private static DBHelper content;
 	private static formHelper _form;
 	private JSONObject _obj = new JSONObject();
+	private JSONObject UserInfo = new JSONObject();
+	private static session session;
+	private String sid = "";
 
 	static {
-		dbcontent = new userDBHelper("objectList", (String) execRequest.getChannelValue("sid"));
-		_form = dbcontent.getChecker();
+		// nlogger.logout("SID:" + (String) execRequest.getChannelValue("sid"));
+		session = new session();
+		// dbcontent = new userDBHelper("objectList", (String)
+		// execRequest.getChannelValue("sid"));
+		// _form = dbcontent.getChecker();
 	}
 
 	public ContentModel() {
-		_form.putRule("mainName", formdef.notNull);
-		_form.putRule("content", formdef.notNull);
-		_form.putRule("wbid", formdef.notNull);
+		sid = (String) execRequest.getChannelValue("sid");
+		if (sid != null) {
+			UserInfo = session.getSession(sid);
+		}
 	}
 
 	private db bind() {
+		if (sid == null) {
+			content = new DBHelper(appsProxy.configValue().get("db").toString(), "objectList");
+			_form = content.getChecker();
+			return content.bind(String.valueOf(appsProxy.appid()));
+		}
+		dbcontent = new userDBHelper("objectList", sid);
+		_form = dbcontent.getChecker();
 		return dbcontent.bind(String.valueOf(appsProxy.appid()));
+	}
+
+	private formHelper getForm() {
+		_form.putRule("mainName", formdef.notNull);
+		_form.putRule("content", formdef.notNull);
+		_form.putRule("wbid", formdef.notNull);
+		return _form;
 	}
 
 	/**
@@ -60,7 +84,7 @@ public class ContentModel {
 		if (content == null) {
 			return resultMessage(0, "插入失败");
 		}
-		if (!_form.checkRuleEx(content)) {
+		if (!getForm().checkRuleEx(content)) {
 			return resultMessage(2, "");
 		}
 		if (content.get("mainName").toString().equals("")) {
@@ -222,46 +246,93 @@ public class ContentModel {
 	}
 
 	public String page(int idx, int pageSize) {
-		JSONObject object = null;
+		JSONObject object = new JSONObject();
+		JSONArray array = new JSONArray();
+		int roleSign = getRole();
 		try {
-			object = new JSONObject();
-			JSONArray array = bind().eq("state", 2).page(idx, pageSize);
-			JSONArray array2 = dencode(array);
-			object.put("totalSize", (int) Math.ceil((double) array.size() / pageSize));
-			object.put("currentPage", idx);
-			object.put("pageSize", pageSize);
-			object.put("data", join(getImg(array2)));
+			// 获取角色权限
+			if (roleSign == 5 || roleSign == 4) {
+				array = bind().page(idx, pageSize);
+			} else if (roleSign == 3) {
+				array = bind().eq("wbid", (String) UserInfo.get("currentWeb")).page(idx, pageSize);
+			} else {
+				array = bind().eq("state", 2).page(idx, pageSize);
+			}
+			object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
 		} catch (Exception e) {
 			nlogger.logout(e);
+			object.put("toalSize", 0);
 		}
+		object.put("currentPage", idx);
+		object.put("pageSize", pageSize);
+		JSONArray array2 = dencode(array);
+		object.put("data", join(getImg(array2)));
 		return resultMessage(object);
 	}
 
 	public String page(int idx, int pageSize, JSONObject content) {
+		String columTemplateContent = "";
+		String columTemplatelist = "";
 		db db = bind();
-		JSONObject object = null;
-		if (content != null) {
-			object = new JSONObject();
-			try {
+		JSONObject object = new JSONObject();
+		JSONArray array = new JSONArray();
+		try {
+			if (content != null) {
+				int roleSign = getRole();
 				db.and();
 				for (Object object2 : content.keySet()) {
 					if (content.containsKey("_id")) {
 						db.eq("_id", new ObjectId(content.get("_id").toString()));
+					} else {
+						if (("ogid").equals(object2.toString())) {
+							String column = appsProxy.proxyCall(getHost(0), appsProxy.appid()
+									+ "/15/ContentGroup/getPrevCol/" + content.get(object2.toString()), null, "")
+									.toString();
+							JSONObject object3 = JSONHelper.string2json(column);
+							if (object3 != null && object3.get("tempContent") != null && object3.get("tempList")!=null) {
+								columTemplateContent = object3.get("tempContent").toString();
+								columTemplatelist = object3.get("tempList").toString();
+							}
+						}
+						db.like(object2.toString(), content.get(object2.toString()));
 					}
-					db.eq(object2.toString(), content.get(object2.toString()));
+
 				}
-				JSONArray array = db.eq("state", 2).dirty().desc("time").page(idx, pageSize);
-				JSONArray array2 = dencode(array);
-				object.put("totalSize", (int) Math.ceil((double) array.size() / pageSize));
-				object.put("currentPage", idx);
-				object.put("pageSize", pageSize);
-				object.put("data", join(getImg(array2)));
-			} catch (Exception e) {
-				nlogger.logout(e);
-				object = null;
+				// array = db.eq("state", 2).dirty().desc("time").page(idx,
+				// pageSize);
+				// 获取角色权限
+				if (roleSign == 5 || roleSign == 4) {
+					array = db.dirty().desc("time").page(idx, pageSize);
+				} else if (roleSign == 3) {
+					array = db.dirty().eq("wbid", (String) UserInfo.get("currentWeb")).desc("time").page(idx, pageSize);
+				} else {
+					array = db.dirty().eq("state", 2).page(idx, pageSize);
+				}
+				object.put("totalSize", (int) Math.ceil((double) db.count() / pageSize));
+			} else {
+				object.put("totalSize", 0);
 			}
+		} catch (Exception e) {
+			nlogger.logout(e);
+			object.put("totalSize", 0);
 		}
+		JSONArray array2 = dencode(array);
+		array2 = getTemp(columTemplateContent, columTemplatelist, array2);
+		object.put("currentPage", idx);
+		object.put("pageSize", pageSize);
+		object.put("data", join(getImg(array2)));
 		return resultMessage(object);
+	}
+
+	private JSONArray getTemp(String temp, String templist, JSONArray array) {
+		JSONArray array2 = new JSONArray();
+		for (int i = 0; i < array.size(); i++) {
+			JSONObject object = (JSONObject) array.get(i);
+			object.put("TemplateContent", temp);
+			object.put("Templatelist", templist);
+			array2.add(object);
+		}
+		return array2;
 	}
 
 	private JSONArray dencode(JSONArray array) {
@@ -395,10 +466,9 @@ public class ContentModel {
 				for (Object object2 : condString.keySet()) {
 					if (object2.equals("_id")) {
 						db.eq("_id", new ObjectId(condString.get("_id").toString()));
-					}else{
+					} else {
 						db.like(object2.toString(), condString.get(object2.toString()));
 					}
-					
 				}
 				JSONArray array = db.eq("state", 2).limit(30).select();
 				ary = join(getImg(array));
@@ -626,7 +696,6 @@ public class ContentModel {
 				if (object.containsKey("image")) {
 					imgURL = object.get("image").toString();
 					if (imgURL.contains("upload")) {
-						System.out.println(getAppIp("file"));
 						imgURL = "http://" + getFileHost(0) + imgURL;
 						object.put("image", imgURL);
 					}
@@ -734,7 +803,7 @@ public class ContentModel {
 	private int getRole() {
 		int roleSign = 0; // 游客
 		String sid = (String) execRequest.getChannelValue("sid");
-		if (!sid.equals("0")) {
+		if (sid != null) {
 			try {
 				privilige privil = new privilige(sid);
 				int roleplv = privil.getRolePV();
@@ -876,6 +945,9 @@ public class ContentModel {
 			break;
 		case 10:
 			message = "没有删除数据权限，请联系管理员进行权限调整";
+			break;
+		case 11:
+			message = "登录信息已失效";
 			break;
 		default:
 			message = "其他异常";

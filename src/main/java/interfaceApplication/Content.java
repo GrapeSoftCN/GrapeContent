@@ -24,13 +24,17 @@ public class Content {
 	private HashMap<String, Object> defmap = new HashMap<>();
 	private static session session;
 	private JSONObject UserInfo = new JSONObject();
+	private String sid = null;
 
-	static{
+	static {
 		session = new session();
 	}
-	
+
 	public Content() {
-		UserInfo = session.getSession((String) execRequest.getChannelValue("sid"));
+		sid = (String) execRequest.getChannelValue("sid");
+		if (sid != null) {
+			UserInfo = session.getSession(sid);
+		}
 		defmap.put("subName", null);
 		defmap.put("image", "");
 		defmap.put("ownid", appsProxy.appid());
@@ -49,23 +53,24 @@ public class Content {
 		defmap.put("readCount", 0);
 		defmap.put("thirdsdkid", "");
 		defmap.put("tempid", 0);
-		defmap.put("wbid", UserInfo!=null?UserInfo.get("currentWeb").toString():"");
+		defmap.put("wbid", (UserInfo != null && UserInfo.size() != 0)? UserInfo.get("currentWeb").toString() : "");
 		defmap.put("u", 2000);
 		defmap.put("r", 1000);
 		defmap.put("d", 3000);
 		defmap.put("time", TimeHelper.nowMillis() + "");
 	}
 
-	private String getImageUri(String imageURL){
+	private String getImageUri(String imageURL) {
 		String subString;
 		String rString = null;
 		int i = imageURL.toLowerCase().indexOf("http://");
-		if( i >= 0){
+		if (i >= 0) {
 			subString = imageURL.substring(i + 7);
 			rString = subString.split("/")[0];
 		}
 		return rString;
 	}
+
 	/**
 	 * 修改文章
 	 * 
@@ -74,29 +79,28 @@ public class Content {
 	 */
 	public String EditArticle(String oid, String contents) {
 		JSONObject infos = JSONHelper.string2json(contents);
-		if( infos != null ){
-			try{
-//				String content = codec.DecodeHtmlTag(infos.get("content").toString());
-//				infos.put("content", codec.encodebase64(content));
+		if (infos != null) {
+			try {
+				// String content =
+				// codec.DecodeHtmlTag(infos.get("content").toString());
+				// infos.put("content", codec.encodebase64(content));
 				infos.put("content", codec.DecodeHtmlTag(infos.get("content").toString()));
 				if (infos.containsKey("image")) {
 					String image = infos.get("image").toString();
 					image = getImageUri(codec.DecodeHtmlTag(image));
 					/*
-					if (image.contains("8080")) {
-						image = image.split("8080")[1];
-					}
-					*/
-					if( image != null ){
+					 * if (image.contains("8080")) { image =
+					 * image.split("8080")[1]; }
+					 */
+					if (image != null) {
 						infos.put("image", image);
 					}
 				}
-			}
-			catch( Exception e ){
+			} catch (Exception e) {
 				nlogger.logout(e);
 			}
 		}
-		return content.resultMessage(content.UpdateArticle(oid, infos),"文章更新成功");
+		return content.resultMessage(content.UpdateArticle(oid, infos), "文章更新成功");
 	}
 
 	/**
@@ -119,10 +123,11 @@ public class Content {
 		return content.findnew();
 	}
 
-	//获取最新公开的指定数量的信息
-	public String FindOpen(int size){
+	// 获取最新公开的指定数量的信息
+	public String FindOpen(int size) {
 		return content.findnew(size);
 	}
+
 	/**
 	 * 根据oid显示文章 同时显示上一篇文章id，名称 下一篇文章id，名称
 	 * 
@@ -130,7 +135,7 @@ public class Content {
 	 */
 	public String findArticle(String oid) {
 		JSONObject object = content.select(oid);
-		if (object==null) {
+		if (object == null) {
 			return content.resultMessage(7, "");
 		}
 		return content.resultMessage(object);
@@ -168,8 +173,7 @@ public class Content {
 	 * @return
 	 */
 	public String SearchArticle(String condString) {
-		return content.resultMessage(
-				content.search(JSONHelper.string2json(condString)));
+		return content.resultMessage(content.search(JSONHelper.string2json(condString)));
 	}
 
 	/**
@@ -182,10 +186,16 @@ public class Content {
 	 * @return
 	 */
 	public String Page(int idx, int pageSize) {
+		if (UserInfo == null) {
+			return content.resultMessage(11, "");
+		}
 		return content.page(idx, pageSize);
 	}
 
 	public String PageBy(int idx, int pageSize, String contents) {
+		if (UserInfo == null) {
+			return content.resultMessage(11, "");
+		}
 		return content.page(idx, pageSize, JSONHelper.string2json(contents));
 	}
 
@@ -209,8 +219,7 @@ public class Content {
 	 * @return 显示修改之前的数据
 	 */
 	public String sort(String oid, int sortNo) {
-		return content.resultMessage(content.updatesort(oid, sortNo),
-				"排序值修改成功");
+		return content.resultMessage(content.updatesort(oid, sortNo), "排序值修改成功");
 	}
 
 	/**
@@ -221,7 +230,7 @@ public class Content {
 	 */
 	public String PublishArticle(String ArticleInfo) {
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
-		if( object != null ){
+		if (object != null) {
 			object = content.AddMap(defmap, object);
 			String value = object.get("content").toString();
 			value = codec.DecodeHtmlTag(value);
@@ -229,7 +238,7 @@ public class Content {
 			if (object.containsKey("image")) {
 				String image = object.get("image").toString();
 				if (image != null && !("").equals(image)) {
-					image = getImageUri( image.replaceAll("@t", "/") );
+					image = getImageUri(image.replaceAll("@t", "/"));
 					object.put("image", image);
 				}
 			}
@@ -238,7 +247,7 @@ public class Content {
 	}
 
 	public JSONObject getwbid(String wbid, JSONObject object) {
-		if( object != null ){
+		if (object != null) {
 			List<String> list = new ArrayList<>();
 			if (object.containsKey("wbid")) {
 				String wbsid = object.get("wbid").toString();
@@ -264,8 +273,7 @@ public class Content {
 	 * @return
 	 */
 	public String DeleteByOgid(String oid, String ogid) {
-		return content.resultMessage(content.deleteByOgID(oid, ogid),
-				"该栏目下文章删除成功");
+		return content.resultMessage(content.deleteByOgID(oid, ogid), "该栏目下文章删除成功");
 	}
 
 	/**
@@ -278,8 +286,7 @@ public class Content {
 	 * @return
 	 */
 	public String DeleteByWbID(String oid, String wbid) {
-		return content.resultMessage(content.deleteByWbID(oid, wbid),
-				"该站点下文章删除成功");
+		return content.resultMessage(content.deleteByWbID(oid, wbid), "该站点下文章删除成功");
 	}
 
 	public String SetTempId(String oid, String tempid) {
@@ -287,8 +294,7 @@ public class Content {
 	}
 
 	public String Setfatherid(String oid, String fatherid) {
-		return content.resultMessage(content.setfatherid(oid, fatherid),
-				"设置模版成功");
+		return content.resultMessage(content.setfatherid(oid, fatherid), "设置模版成功");
 	}
 
 	public String Setslevel(String oid, String slevel) {
@@ -297,8 +303,7 @@ public class Content {
 
 	// 审核
 	public String Review(String oid, String managerid, String state) {
-		return content.resultMessage(content.review(oid, managerid, state),
-				"审核文章操作成功");
+		return content.resultMessage(content.review(oid, managerid, state), "审核文章操作成功");
 	}
 
 	public String BatchDelete(String oid) {
@@ -313,25 +318,22 @@ public class Content {
 	// 获取当前文章所在栏目位置
 	public String getPosition(String oid) {
 		List<JSONObject> list = new ArrayList<>();
-		try{
+		try {
 			// 获取文章所属的栏目id
 			String message = JSONHelper.string2json(findArticle(oid)).get("message").toString();
 			String records = JSONHelper.string2json(message).get("records").toString();
 			String ogid = JSONHelper.string2json(records).get("ogid").toString();
 			String prevCol = content.getPrev(ogid);
-			String fatherid = JSONHelper.string2json(prevCol).get("fatherid")
-					.toString();
+			String fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
 			list = content.getName(list, JSONHelper.string2json(prevCol));
 			// 根据fatherid获取上一级栏目，直到fatherid=0
 			while (!"0".equals(fatherid)) {
-				prevCol = content.getPrev(ogid);
-				fatherid = JSONHelper.string2json(prevCol).get("fatherid")
-						.toString();
+				prevCol = content.getPrev(fatherid);
+				fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
 				list = content.getName(list, JSONHelper.string2json(prevCol));
 			}
 			Collections.reverse(list); // list倒序排列
-		}
-		catch(Exception e){
+		} catch (Exception e) {
 			nlogger.logout(e);
 			list = null;
 		}
@@ -341,18 +343,16 @@ public class Content {
 	// 获取下级栏目的文章
 	public String getContent(String ogid, int no) {
 		String ids = null;
-		try{
-			String tips = appsProxy.proxyCall(content.getPrev(ogid),
-					String.valueOf(appsProxy.appid())
-							+ "/15/ContentGroup/getColumnByFid/s:" + ogid,
-					null, "").toString();
-			String message = JSONHelper.string2json(tips).get("message").toString();
-			String records = JSONHelper.string2json(message).get("records")
+		try {
+			String tips = appsProxy
+					.proxyCall(content.getPrev(ogid),
+							String.valueOf(appsProxy.appid()) + "/15/ContentGroup/getColumnByFid/s:" + ogid, null, "")
 					.toString();
+			String message = JSONHelper.string2json(tips).get("message").toString();
+			String records = JSONHelper.string2json(message).get("records").toString();
 			JSONArray array = JSONHelper.string2array(records);
 			ids = getID(array);
-		}
-		catch(Exception e){
+		} catch (Exception e) {
 			nlogger.logout(e);
 			ids = null;
 		}
@@ -363,7 +363,7 @@ public class Content {
 	// 获取文章id
 	public String getID(JSONArray array) {
 		List<String> list = null;
-		if( array != null ){
+		if (array != null) {
 			list = new ArrayList<>();
 			JSONObject object;
 			JSONObject objID;
