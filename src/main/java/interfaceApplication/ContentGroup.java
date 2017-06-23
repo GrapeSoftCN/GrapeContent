@@ -1,5 +1,6 @@
 package interfaceApplication;
 
+import java.awt.image.AreaAveragingScaleFilter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -8,38 +9,45 @@ import java.util.List;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+
 import apps.appsProxy;
 import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
 import model.ContentGroupModel;
 import nlogger.nlogger;
+import rpc.execRequest;
+import session.session;
 
 public class ContentGroup {
 	private ContentGroupModel group = new ContentGroupModel();
 	private HashMap<String, Object> defcol = new HashMap<>();
+	private static session session = new session();
 
 	public ContentGroup() {
-
+		JSONObject userInfo = new JSONObject();
+		String sid = (String) execRequest.getChannelValue("sid");
+		if (sid != null) {
+			userInfo = session.getSession(sid);
+		}
 		defcol.put("ownid", 0);
-		defcol.put("fatherid", 0);
+		defcol.put("fatherid", "0");
 		defcol.put("sort", 0);
 		defcol.put("isvisble", 0);
 		defcol.put("slevel", 0);
-		defcol.put("tempContent", 0);
-		defcol.put("tempList", 0);
-		defcol.put("uplv", 2000);
-		defcol.put("rplv", 1000);
-		defcol.put("dplv", 3000);
+		defcol.put("type", 0);
+		defcol.put("tempContent", "0");
+		defcol.put("tempList", "0");
+		defcol.put("contentType", "0"); // 该栏目下文章的类型
+		defcol.put("fixed", "0"); // 是否为固定栏目，即所有子网站都显示的栏目 0：非固定栏目；1：固定栏目
+		defcol.put("u", 2000);
+		defcol.put("r", 1000);
+		defcol.put("d", 3000);
+		defcol.put("wbid", (userInfo != null && userInfo.size() != 0) ? userInfo.get("currentWeb") : "");
 	}
 
 	// 新增
 	public String GroupInsert(String GroupInfo) {
-		// 该用户是否拥有新增权限
-		// String tip = execRequest
-		// ._run("GrapeAuth/Auth/InsertPLV/s:" + userId, null).toString();
-		// if (!"0".equals(tip)) {
-		// return group.resultMessage(4, "没有新增权限");
-		// }
 		JSONObject ginfos = group.AddMap(defcol, JSONHelper.string2json(GroupInfo));
 		return group.AddGroup(ginfos);
 	}
@@ -57,13 +65,6 @@ public class ContentGroup {
 
 	// 删除
 	public String GroupDelete(String ogid) {
-		// // 获取该条数据的删除，修改，查询权限
-		// String dPLV = group.find(ogid).get("dplv").toString();
-		// String tip = execRequest._run("GrapeAuth/Auth/DeletePLV/s:" + dPLV
-		// + "/s:" + userId, null).toString();
-		// if (!"0".equals(tip)) {
-		// return group.resultMessage(6, "没有删除权限");
-		// }
 		// 获取该栏目下的所有子栏目
 		long code = -1;
 		int codes = -1;
@@ -80,7 +81,7 @@ public class ContentGroup {
 				list.add(ogid);
 				String tips = appsProxy
 						.proxyCall(group.getHost(0),
-								appsProxy.appid() + "/15/content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
+								appsProxy.appid() + "/15/Content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
 						.toString();
 				if (tips != null && !tips.equals("")) {
 					code = (long) JSONHelper.string2json(tips).get("errorcode");
@@ -175,7 +176,11 @@ public class ContentGroup {
 
 	// 获得上级栏目id，name，fatherid
 	public String getPrevCol(String ogid) {
-		JSONObject rs = group.find(ogid);
+		JSONObject rs = null;
+		if (!ogid.equals("0")) {
+			rs = new JSONObject();
+			rs = group.find(ogid);
+		}
 		return rs != null ? rs.toString() : "";
 	}
 
@@ -193,11 +198,13 @@ public class ContentGroup {
 			obj.put("_id", objID.get("$oid").toString());
 			obj.put("name", object.get("name").toString());
 			list.add(obj);
-			while (!"0".equals(fatherid)) {
-				String prevCol = getPrevCol(fatherid);
-				fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
-				list = group.getName(list, JSONHelper.string2json(prevCol));
+			if (!fatherid.contains("$numberLong")) {
+				while (!"0".equals(fatherid)) {
+					String prevCol = getPrevCol(fatherid);
+					fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
+					list = group.getName(list, JSONHelper.string2json(prevCol));
 
+				}
 			}
 			Collections.reverse(list); // list倒序排列
 		} catch (Exception e) {
@@ -212,4 +219,14 @@ public class ContentGroup {
 		return group.setColumManage(ogid, userid);
 	}
 
+	// 根据网站id获取固定栏目信息
+	public String getFixedColumn(String wbid) {
+		JSONArray array = group.getFixedColumn(wbid);
+		return (array != null && array.size() != 0) ? array.toString() : "";
+	}
+
+	public String getPrevColumn(String wbid) {
+		JSONArray array = group.getColumnByWbid(wbid);
+		return array != null ? array.toString() : "";
+	}
 }

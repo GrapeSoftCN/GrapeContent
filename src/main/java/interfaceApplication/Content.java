@@ -40,7 +40,9 @@ public class Content {
 		defmap.put("ownid", appsProxy.appid());
 		defmap.put("manageid", "");
 		defmap.put("content", "");
-		defmap.put("fatherid", 0);
+		defmap.put("fatherid", "0");
+		defmap.put("author", 0);
+		defmap.put("attribute", 0);
 		defmap.put("ogid", 0);
 		defmap.put("attrid", 0);
 		defmap.put("sort", 0);
@@ -53,22 +55,66 @@ public class Content {
 		defmap.put("readCount", 0);
 		defmap.put("thirdsdkid", "");
 		defmap.put("tempid", 0);
-		defmap.put("wbid", (UserInfo != null && UserInfo.size() != 0)? UserInfo.get("currentWeb").toString() : "");
+		defmap.put("wbid", (UserInfo != null && UserInfo.size() != 0) ? UserInfo.get("currentWeb").toString() : "");
 		defmap.put("u", 2000);
 		defmap.put("r", 1000);
 		defmap.put("d", 3000);
 		defmap.put("time", TimeHelper.nowMillis() + "");
 	}
 
+	// private String getImageUri(String imageURL) {
+	// String subString="";
+	// String rString = null;
+	// int i = imageURL.toLowerCase().indexOf("http://");
+	// if (i >= 0) {
+	// subString = imageURL.substring(i + 7);
+	// rString = subString.split("/")[1];
+	// }
+	// return rString;
+	// }
 	private String getImageUri(String imageURL) {
-		String subString;
-		String rString = null;
-		int i = imageURL.toLowerCase().indexOf("http://");
-		if (i >= 0) {
-			subString = imageURL.substring(i + 7);
-			rString = subString.split("/")[0];
+		// String rString = null;
+		if (imageURL.contains("http://")) {
+			int i = imageURL.toLowerCase().indexOf("/file/upload");
+			imageURL = imageURL.substring(i);
 		}
-		return rString;
+		return imageURL;
+	}
+
+	/**
+	 * 批量添加文章
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param ArticleInfo
+	 *            参数格式为[{文章数据1},{文章数据2},...]
+	 * @return
+	 *
+	 */
+	public String AddAllArticle(String ArticleInfo) {
+		JSONObject object;
+		String info;
+		List<String> list = new ArrayList<>();
+		int code = 99;
+		JSONArray array = JSONHelper.string2array(ArticleInfo);
+		if (array != null && array.size() != 0) {
+			for (Object obj : array) {
+				object = (JSONObject) obj;
+				info = content.AddAll(content.AddMap(defmap, object));
+				if (info == null) {
+					if (list.size() != 0) {
+						BatchDelete(StringHelper.join(list));
+					}
+					code = 99;
+					break;
+				}
+				code = 0;
+				list.add(info);
+			}
+		}
+		return content.resultMessage(code, "批量发布文章成功");
 	}
 
 	/**
@@ -172,8 +218,12 @@ public class Content {
 	 * @param jsonstring
 	 * @return
 	 */
-	public String SearchArticle(String condString) {
+	public String SearchArticles(String condString) {
 		return content.resultMessage(content.search(JSONHelper.string2json(condString)));
+	}
+
+	public String SearchArticle(String condString, int no) {
+		return content.resultMessage(content.search(JSONHelper.string2json(condString), no));
 	}
 
 	/**
@@ -230,20 +280,8 @@ public class Content {
 	 */
 	public String PublishArticle(String ArticleInfo) {
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
-		if (object != null) {
-			object = content.AddMap(defmap, object);
-			String value = object.get("content").toString();
-			value = codec.DecodeHtmlTag(value);
-			object.put("content", value);
-			if (object.containsKey("image")) {
-				String image = object.get("image").toString();
-				if (image != null && !("").equals(image)) {
-					image = getImageUri(image.replaceAll("@t", "/"));
-					object.put("image", image);
-				}
-			}
-		}
-		return content.resultMessage(0, content.insert(object));
+		object = content.AddMap(defmap, object);
+		return content.insert(object);
 	}
 
 	public JSONObject getwbid(String wbid, JSONObject object) {
@@ -327,10 +365,14 @@ public class Content {
 			String fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
 			list = content.getName(list, JSONHelper.string2json(prevCol));
 			// 根据fatherid获取上一级栏目，直到fatherid=0
-			while (!"0".equals(fatherid)) {
-				prevCol = content.getPrev(fatherid);
-				fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
-				list = content.getName(list, JSONHelper.string2json(prevCol));
+			if (!fatherid.contains("$numberLong")) {
+				while (!"0".equals(fatherid)) {
+					prevCol = content.getPrev(fatherid);
+					if (!prevCol.equals("")) {
+						fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
+						list = content.getName(list, JSONHelper.string2json(prevCol));
+					}
+				}
 			}
 			Collections.reverse(list); // list倒序排列
 		} catch (Exception e) {

@@ -1,27 +1,31 @@
 package model;
 
 import java.io.FileInputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Map.Entry;
 
+import org.apache.commons.lang3.ObjectUtils.Null;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import apps.appsProxy;
 import authority.privilige;
-import authority.userDBHelper;
 import cache.redis;
+import check.formHelper;
+import check.formHelper.formdef;
+import database.DBHelper;
 import database.db;
-import esayhelper.DBHelper;
+import database.userDBHelper;
 import esayhelper.JSONHelper;
 import esayhelper.StringHelper;
-import esayhelper.formHelper;
-import esayhelper.formHelper.formdef;
 import esayhelper.jGrapeFW_Message;
 import jodd.util.ArraysUtil;
 import nlogger.nlogger;
@@ -31,19 +35,20 @@ import session.session;
 
 @SuppressWarnings("unchecked")
 public class ContentModel {
-	private static userDBHelper dbcontent;
-	private static DBHelper content;
+	private static userDBHelper dbcontent = null;
+	private static DBHelper content = null;
 	private static formHelper _form;
 	private JSONObject _obj = new JSONObject();
 	private JSONObject UserInfo = new JSONObject();
 	private static session session;
-	private String sid = "";
+	private String sid = null;
+	private final Pattern ATTR_PATTERN = Pattern.compile("<img[^<>]*?\\ssrc=['\"]?(.*?)['\"]?\\s.*?>",
+			Pattern.CASE_INSENSITIVE);
 
 	static {
 		// nlogger.logout("SID:" + (String) execRequest.getChannelValue("sid"));
 		session = new session();
-		// dbcontent = new userDBHelper("objectList", (String)
-		// execRequest.getChannelValue("sid"));
+		dbcontent = new userDBHelper("objectList", (String) execRequest.getChannelValue("sid"));
 		// _form = dbcontent.getChecker();
 	}
 
@@ -54,18 +59,31 @@ public class ContentModel {
 		}
 	}
 
+	private DBHelper getDB() {
+		if (content == null) {
+			content = new DBHelper(appsProxy.configValue().get("db").toString(), "objectList");
+		}
+		return content;
+	}
+
+	private DBHelper getUserDB() {
+		dbcontent = new userDBHelper("objectList", sid);
+		return dbcontent;
+	}
+
 	private db bind() {
 		if (sid == null) {
-			content = new DBHelper(appsProxy.configValue().get("db").toString(), "objectList");
-			_form = content.getChecker();
-			return content.bind(String.valueOf(appsProxy.appid()));
+			return getDB().bind(String.valueOf(appsProxy.appid()));
 		}
-		dbcontent = new userDBHelper("objectList", sid);
-		_form = dbcontent.getChecker();
-		return dbcontent.bind(String.valueOf(appsProxy.appid()));
+		return getUserDB().bind(String.valueOf(appsProxy.appid()));
 	}
 
 	private formHelper getForm() {
+		if (sid == null) {
+			_form = getDB().getChecker();
+		} else {
+			_form = getUserDB().getChecker();
+		}
 		_form.putRule("mainName", formdef.notNull);
 		_form.putRule("content", formdef.notNull);
 		_form.putRule("wbid", formdef.notNull);
@@ -81,11 +99,47 @@ public class ContentModel {
 	 */
 	// 不允许重复添加，但存在同名不同内容的文章
 	public String insert(JSONObject content) {
+		String info = null;
+		JSONObject ro = null;
+		try {
+			info = checkparam(content);
+			if (JSONHelper.string2json(info) != null && info.contains("errorcode")) {
+				return info;
+			}
+			info = bind().data(info).insertOnce().toString();
+			ro = findOid(info);
+		} catch (Exception e) {
+			nlogger.logout(e);
+		}
+		return resultMessage(ro);
+	}
+
+	/**
+	 * 验证待添加文章数据内容的合法性
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param content
+	 * @return
+	 *
+	 */
+	private String checkparam(JSONObject content) {
 		if (content == null) {
 			return resultMessage(0, "插入失败");
 		}
 		if (!getForm().checkRuleEx(content)) {
 			return resultMessage(2, "");
+		}
+		String value = content.get("content").toString();
+		value = codec.DecodeHtmlTag(value);
+		value = codec.decodebase64(value);
+		value = getContent(value);
+		if (JSONHelper.string2json(value) == null) {
+			content.puts("content", codec.encodebase64(value));
+		} else {
+			return value;
 		}
 		if (content.get("mainName").toString().equals("")) {
 			return resultMessage(1, "");
@@ -94,19 +148,119 @@ public class ContentModel {
 			content.remove("ogid");
 		}
 		if (content.containsKey("image")) {
-			if (content.get("image").toString().contains(":")) {
-				content.put("image", getimage(content));
+			String image = content.getString("image");
+			if (!image.equals("") && image != null) {
+				content.puts("image", RemoveUrlPrefix(content.getString("image")));
 			}
 		}
-		String info = null;
-		JSONObject ro = null;
-		try {
-			info = bind().data(content).insertOnce().toString();
-			ro = findByOid(info);
-		} catch (Exception e) {
-			nlogger.logout(e);
+		return content.toJSONString();
+	}
+
+	/**
+	 * 获取文章内容，对不同的文章内容数据进行处理
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @return
+	 *
+	 */
+	private String getContent(String contents) {
+		if (!("").equals(contents)) {
+			contents = contents.toLowerCase();
+			Matcher matcher = ATTR_PATTERN.matcher(contents);
+			int code = matcher.find() ? 0 : contents.contains("/file/upload") ? 1 : 2;
+			switch (code) {
+			case 0: // 文章内容为html带图片类型的内容处理
+				contents = RemoveHtmlPrefix(contents);
+				break;
+			case 1: // 文章内容图片类型处理[获取图片的相对路径]
+				contents = RemoveUrlPrefix(contents);
+				break;
+			case 2: // 文章内容文字类型处理
+				contents = CheckWord(contents);
+				break;
+			}
 		}
-		return resultMessage(ro);
+		return contents;
+	}
+
+	// 获取html内容中的图片地址集
+	private List<String> getCommonAddr(String contents) {
+		Matcher matcher = ATTR_PATTERN.matcher(contents);
+		List<String> list = new ArrayList<String>();
+		while (matcher.find()) {
+			list.add(matcher.group(1));
+		}
+		return list;
+	}
+
+	/**
+	 * 去除html中图片地址 http://.....
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param Contents
+	 * @return
+	 *
+	 */
+	private String RemoveHtmlPrefix(String Contents) {
+		List<String> list = getCommonAddr(Contents);
+		for (int i = 0; i < list.size(); i++) {
+			String temp = list.get(i);
+			String string2 = temp.replace(temp, RemoveUrlPrefix(temp));
+			if (Contents.contains(temp)) {
+				Contents = Contents.replaceAll(temp, string2);
+			}
+		}
+		return Contents;
+	}
+
+	/**
+	 * 添加html中图片地址 http://.....
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param Contents
+	 * @return
+	 *
+	 */
+	private String AddHtmlPrefix(String Contents) {
+		List<String> list = getCommonAddr(Contents);
+		for (int i = 0; i < list.size(); i++) {
+			String temp = list.get(i);
+			String string2 = temp.replace(temp, AddUrlPrefix(Contents));
+			if (Contents.contains(temp)) {
+				Contents = Contents.replaceAll(temp, string2);
+			}
+		}
+		return Contents;
+	}
+
+	// 敏感词检测
+	private String CheckWord(String contents) {
+		String key = appsProxy
+				.proxyCall(getHost(0), appsProxy.appid() + "/106/KeyWords/CheckKeyWords/" + contents, null, "")
+				.toString();
+		JSONObject keywords = JSONHelper.string2json(key);
+		long codes = (Long) keywords.get("errorcode");
+		if (codes == 3) {
+			contents = resultMessage(5, "");
+		}
+		return contents;
+	}
+
+	// 批量添加
+	public String AddAll(JSONObject object) {
+		Object tip;
+		String info = checkparam(object);
+		tip = (JSONHelper.string2json(info) != null) ? tip = null : bind().data(info).insertOnce();
+		return tip != null ? tip.toString() : null;
 	}
 
 	public int UpdateArticle(String oid, JSONObject content) {
@@ -120,14 +274,14 @@ public class ContentModel {
 			if (content.containsKey("_id")) {
 				content.remove("_id");
 			}
-			if (content.containsKey("image")) {
-				String image = content.get("image").toString();
-				if (image.contains("upload")) {
-					if (image.contains("8080")) {
-						content.put("image", getimage(content));
-					}
-				}
-			}
+			// if (content.containsKey("image")) {
+			// String image = content.get("image").toString();
+			// if (image.contains("http:")) {
+			// if (image.contains("8080")) {
+			// content.put("image", getimage(content));
+			// }
+			// }
+			// }
 			ri = bind().eq("_id", new ObjectId(oid)).data(content).update() != null ? 0 : 99;
 		} catch (Exception e) {
 			ri = 99;
@@ -227,16 +381,17 @@ public class ContentModel {
 	public int setGroup(String ogid) {
 		int ir = 99;
 		try {
-			String cont = "{\"ogid\":0}";
-			if (ogid != null && !"".equals(ogid)) {
-				String[] value = ogid.split(",");
+			String[] value = null;
+			db db = bind().or();
+			String cont = "{\"ogid\":\"0\"}";
+			if (!("").equals(ogid)) {
+				value = ogid.split(",");
 				int len = value.length;
-				bind().or();
 				for (int i = 0; i < len; i++) {
-					bind().eq("ogid", value[i]);
+					db.eq("ogid", value[i]);
 				}
 			}
-			ir = bind().data(cont).updateAll() != 0 ? 0 : 99;
+			ir = db.data(cont).updateAll() != value.length ? 0 : 99;
 
 		} catch (Exception e) {
 			System.out.println("content.setGroup:ogid:" + e.getMessage());
@@ -289,14 +444,21 @@ public class ContentModel {
 									+ "/15/ContentGroup/getPrevCol/" + content.get(object2.toString()), null, "")
 									.toString();
 							JSONObject object3 = JSONHelper.string2json(column);
-							if (object3 != null && object3.get("tempContent") != null && object3.get("tempList")!=null) {
-								columTemplateContent = object3.get("tempContent").toString();
-								columTemplatelist = object3.get("tempList").toString();
+							if (object3 != null && object3.get("TemplateContent") != null
+									&& object3.get("TemplateList") != null) {
+								columTemplateContent = object3.get("TemplateContent").toString();
+								columTemplatelist = object3.get("TemplateContent").toString();
 							}
+						}
+						if (object2.toString().equals("content")) {
+							// 添加热词到数据库
+							appsProxy
+									.proxyCall(getHost(0),
+											appsProxy.appid() + "/110/Word/AddWord/" + content.toString(), null, "")
+									.toString();
 						}
 						db.like(object2.toString(), content.get(object2.toString()));
 					}
-
 				}
 				// array = db.eq("state", 2).dirty().desc("time").page(idx,
 				// pageSize);
@@ -306,7 +468,9 @@ public class ContentModel {
 				} else if (roleSign == 3) {
 					array = db.dirty().eq("wbid", (String) UserInfo.get("currentWeb")).desc("time").page(idx, pageSize);
 				} else {
-					array = db.dirty().eq("state", 2).page(idx, pageSize);
+					db.eq("slevel", 0);
+					// array = db.dirty().eq("state", 2).page(idx, pageSize);
+					array = db.dirty().page(idx, pageSize);
 				}
 				object.put("totalSize", (int) Math.ceil((double) db.count() / pageSize));
 			} else {
@@ -410,10 +574,16 @@ public class ContentModel {
 					}
 					preobj = find(object.get("time").toString(), "<");
 					nextobj = find(object.get("time").toString(), ">");
-					object.put("previd", getpnArticle(preobj).get("id"));
-					object.put("prevname", getpnArticle(preobj).get("name"));
-					object.put("nextid", getpnArticle(nextobj).get("id"));
-					object.put("nextname", getpnArticle(nextobj).get("name"));
+					preobj = getpnArticle(preobj);
+					nextobj = getpnArticle(nextobj);
+					object.put("previd", preobj.get("id"));
+					object.put("prevname", preobj.get("name"));
+					object.put("prevTempContent", preobj.get("tempcontent"));
+					object.put("prevTempList", preobj.get("templist"));
+					object.put("nextid", nextobj.get("id"));
+					object.put("nextname", nextobj.get("name"));
+					object.put("nextTempContent", nextobj.get("tempcontent"));
+					object.put("nextTempList", nextobj.get("templist"));
 					object = join(getImg(object));
 				}
 			} catch (Exception e) {
@@ -480,6 +650,34 @@ public class ContentModel {
 		return ary;
 	}
 
+	public JSONArray search(JSONObject condString, int no) {
+		db db = bind();
+		JSONArray ary = null;
+		String content = "";
+		if (condString != null) {
+			try {
+				db.and();
+				for (Object object2 : condString.keySet()) {
+					if (object2.equals("_id")) {
+						db.eq("_id", new ObjectId(condString.get("_id").toString()));
+					} else {
+						content = (String) condString.get(object2.toString());
+						db.like(object2.toString(), content);
+					}
+				}
+				JSONArray array = db.eq("state", 2).limit(no).select();
+				if (array != null && array.size() > 0) {
+					ary = join(getImg(array));
+					appsProxy.proxyCall(getHost(0), appsProxy.appid() + "/110/Word/AddWord/" + content, null, null);
+				}
+			} catch (Exception e) {
+				nlogger.logout(e);
+				ary = null;
+			}
+		}
+		return ary;
+	}
+
 	// 获取积分价值条件？？
 	public void getpoint() {
 		bind().field("point").limit(20).select();
@@ -495,11 +693,21 @@ public class ContentModel {
 		return object;
 	}
 
+	private JSONObject findOid(String oid) {
+		JSONObject object = bind().eq("_id", new ObjectId(oid)).find();
+		if (object != null) {
+			object = dencode(object);
+			object = join(getImg(object));
+		}
+		return object;
+	}
+
 	// 根据栏目id查询文章
 	public JSONArray findByGroupID(String ogid) {
 		JSONArray array = null;
 		try {
-			array = join(getImg(bind().eq("state", 2).eq("ogid", ogid).desc("time").limit(20).select()));
+			array = bind().eq("state", 2).eq("ogid", ogid).desc("time").limit(20).select();
+			array = join(getImg(dencode(array)));
 		} catch (Exception e) {
 			nlogger.logout(e);
 			array = null;
@@ -582,11 +790,11 @@ public class ContentModel {
 	public int delete(String[] arr) {
 		int ir = 99;
 		try {
-			bind().or();
+			db db = bind().or();
 			for (int i = 0; i < arr.length; i++) {
-				bind().eq("_id", new ObjectId(arr[i]));
+				db.eq("_id", new ObjectId(arr[i]));
 			}
-			ir = bind().deleteAll() == arr.length ? 0 : 99;
+			ir = db.deleteAll() == arr.length ? 0 : 99;
 		} catch (Exception e) {
 			ir = 99;
 			nlogger.logout(e);
@@ -616,27 +824,202 @@ public class ContentModel {
 		} else {
 			bind().gt("time", time).asc("time");
 		}
-		JSONObject object = bind().find();
+		JSONObject object = join(bind().find());
 		return object != null ? object : null;
 	}
 
+	public String getPrev(String ogid) {
+		String prevCol = null;
+		if (ogid.contains("$numberLong")) {
+			return prevCol;
+		}
+		try {
+			prevCol = appsProxy.proxyCall(getHost(0),
+					String.valueOf(appsProxy.appid()) + "/15/ContentGroup/getPrevCol/s:" + ogid, null, "").toString();
+		} catch (Exception e) {
+			nlogger.logout(e);
+			prevCol = null;
+		}
+		return prevCol;
+	}
+
 	private JSONObject getpnArticle(JSONObject object) {
-		String id = null;
-		String name = null;
+		String id = "";
+		String name = "";
+		String columTemplateContent = "";
+		String columTemplatelist = "";
 		JSONObject object2 = new JSONObject();
 		if (object != null) {
+			JSONObject objs = getTemp(object);
+			if (objs != null && objs.get("TemplateContent") != null && objs.get("TemplateList") != null) {
+				columTemplateContent = objs.get("TemplateContent").toString();
+				columTemplatelist = objs.get("TemplateList").toString();
+			}
 			JSONObject obj = (JSONObject) object.get("_id");
 			id = obj.get("$oid").toString();
 			name = object.get("mainName").toString();
 			object2.put("id", id);
 			object2.put("name", name);
+			object2.put("tempcontent", columTemplateContent);
+			object2.put("templist", columTemplatelist);
 		}
 		return object2;
 	}
 
-	private String getimage(JSONObject object) {
-		String image = object.get("image").toString();
-		return image.split("8080")[1];
+	/**
+	 * 获取待添加文章信息中图片相对路径，并赋新值
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param object
+	 * @return
+	 *
+	 */
+	/*
+	 * private JSONObject getimage(JSONObject object) { JSONObject obj = new
+	 * JSONObject(); try { String image = object.getString("image"); obj =
+	 * object.puts("image", getimage(image)); } catch (Exception e) { obj =
+	 * object; } return obj; }
+	 */
+
+	/**
+	 * 获取图片相对路径，去掉前缀http://....
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param imageURL
+	 * @return
+	 *
+	 */
+	private String getimage(String imageURL) {
+		if (imageURL.contains("http://")) {
+			int i = imageURL.toLowerCase().indexOf("/file/upload");
+			imageURL = imageURL.substring(i);
+		}
+		return imageURL;
+	}
+
+	/**
+	 * 显示文章时，文章中的图片地址，图片内容文章的图片地址添上前缀 文章内容为解码后的内容
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @return
+	 *
+	 */
+	private JSONArray getImg(JSONArray array) {
+		JSONArray arrays = new JSONArray();
+		JSONObject object;
+		for (Object obj : array) {
+			object = (JSONObject) obj;
+			arrays.add(getImg(object));
+		}
+		return arrays;
+	}
+
+	/**
+	 * 显示文章时，文章中的图片地址，图片内容文章的图片地址添上前缀 文章内容为解码后的内容
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @return
+	 *
+	 */
+	private JSONObject getImg(JSONObject object) {
+		JSONObject obj = new JSONObject();
+		String imageUrl;
+		String contents;
+		if (object != null) {
+			try {
+				imageUrl = object.getString("image");
+				// imageUrl = AddUrlPrefix(imageUrl);
+				obj = object.puts("image", AddUrlPrefix(imageUrl));
+				contents = object.getString("content").toLowerCase();
+				if (!contents.equals("")) {
+					Matcher matcher = ATTR_PATTERN.matcher(contents);
+					int code = matcher.find() ? 0 : contents.contains("/file/upload") ? 1 : 2;
+					switch (code) {
+					case 0: // 文章内容为html带图片类型的内容处理
+						contents = AddHtmlPrefix(contents);
+						break;
+					case 1: // 文章内容图片类型处理[获取图片的相对路径]
+						contents = AddUrlPrefix(contents);
+						break;
+					case 2: // 文章内容文字类型处理
+						break;
+					default:
+						break;
+					}
+					obj = object.puts("content", contents);
+				}
+			} catch (Exception e) {
+				nlogger.logout("image.error：" + e.getMessage());
+				obj = object;
+			}
+		}
+
+		return obj;
+	}
+
+	/**
+	 * 添加图片前缀
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param imgUrl
+	 * @return
+	 *
+	 */
+	private String AddUrlPrefix(String imageUrl) {
+		if (imageUrl.equals("") || imageUrl == null) {
+			return imageUrl;
+		}
+		String[] imgUrl = imageUrl.split(",");
+		List<String> list = new ArrayList<>();
+		for (String string : imgUrl) {
+			if (string.contains("http://")) {
+				string = getimage(string);
+			}
+			string = "http://" + getFileHost(1) + string;
+			list.add(string);
+		}
+		return StringHelper.join(list);
+	}
+
+	/**
+	 * 删除图片前缀
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param imgUrl
+	 * @return
+	 *
+	 */
+	private String RemoveUrlPrefix(String imageUrl) {
+		if (imageUrl.equals("") || imageUrl == null) {
+			return imageUrl;
+		}
+		String[] imgUrl = imageUrl.split(",");
+		List<String> list = new ArrayList<>();
+		for (String string : imgUrl) {
+			if (string.contains("http://")) {
+				string = getimage(string);
+			}
+			list.add(string);
+		}
+		return StringHelper.join(list);
 	}
 
 	// 获取栏目id及名称
@@ -667,47 +1050,50 @@ public class ContentModel {
 		return resultMessage(0, rs);
 	}
 
-	// 获取图片内容
-	private JSONObject getImg(JSONObject object) {
+	private JSONObject getTemp(JSONObject object) {
+		JSONObject obj = null;
+		// CacheHelper cache = new
+		// CacheHelper((String)appsProxy.configValue().get("cache"));
 		try {
-			String imgURL = object.get("image").toString();
-			if (imgURL.contains("File")) {
-				imgURL = getAppIp("file").split("/")[1] + imgURL;
-				object.put("image", imgURL);
-			}
+			obj = new JSONObject();
+			String column = "";
+			String ogid = object.get("ogid").toString();
+			// if (cache.get(ogid) != null) {
+			// column = cache.get(ogid).toString();
+			// } else {
+			column = appsProxy
+					.proxyCall(getHost(0), appsProxy.appid() + "/15/ContentGroup/getPrevCol/" + ogid, null, "")
+					.toString();
+			// cache.setget(ogid, column);
+			// }
+			obj = JSONHelper.string2json(column);
 		} catch (Exception e) {
-			System.out.println("getImg数据错误: " + e.getMessage());
-			object = null;
+			nlogger.logout("Content.getGroupTemp:" + e);
+			obj = null;
 		}
-		return object;
+		return obj;
 	}
 
-	private JSONArray getImg(JSONArray array) {
-		if (array.size() == 0) {
-			return array;
-		}
-		JSONArray array2 = null;
-		try {
-			JSONObject object;
-			String imgURL;
-			array2 = new JSONArray();
-			for (int i = 0, len = array.size(); i < len; i++) {
-				object = (JSONObject) array.get(i);
-				if (object.containsKey("image")) {
-					imgURL = object.get("image").toString();
-					if (imgURL.contains("upload")) {
-						imgURL = "http://" + getFileHost(0) + imgURL;
-						object.put("image", imgURL);
-					}
-				}
-				array2.add(object);
-			}
-		} catch (Exception e) {
-			System.out.println("content.getImg-Array:" + e.getMessage());
-			array2 = null;
-		}
-		return array2;
-	}
+	// 获取图片内容
+	/*
+	 * private JSONObject getImg(JSONObject object) { try { String imgURL =
+	 * object.get("image").toString(); if (imgURL.contains("File")) { imgURL =
+	 * getAppIp("file").split("/")[1] + imgURL; object.put("image", imgURL); } }
+	 * catch (Exception e) { System.out.println("getImg数据错误: " +
+	 * e.getMessage()); object = null; } return object; }
+	 */
+
+	/*
+	 * private JSONArray getImg(JSONArray array) { if (array.size() == 0) {
+	 * return array; } JSONArray array2 = null; try { JSONObject object; String
+	 * imgURL; array2 = new JSONArray(); for (int i = 0, len = array.size(); i <
+	 * len; i++) { object = (JSONObject) array.get(i); if
+	 * (object.containsKey("image")) { imgURL = object.get("image").toString();
+	 * if (imgURL.contains("upload")) { imgURL = "http://" + getFileHost(1) +
+	 * imgURL; object.put("image", imgURL); } } array2.add(object); } } catch
+	 * (Exception e) { System.out.println("content.getImg-Array:" +
+	 * e.getMessage()); array2 = null; } return array2; }
+	 */
 
 	private JSONArray join(JSONArray array) {
 		JSONArray arrays = null;
@@ -741,6 +1127,9 @@ public class ContentModel {
 		String temp = "";
 		redis redis = new redis();
 		try {
+			if (tid.contains("$numberLong")) {
+				tid = JSONHelper.string2json(tid).getString("$numberLong");
+			}
 			if (!("0").equals(tid)) {
 				if (redis.get(tid) != null) {
 					temp = redis.get(tid).toString();
@@ -759,37 +1148,6 @@ public class ContentModel {
 		return temp;
 	}
 
-	public String getPrev(String ogid) {
-		String prevCol = null;
-		try {
-			prevCol = appsProxy.proxyCall(getHost(0),
-					String.valueOf(appsProxy.appid()) + "/15/ContentGroup/getPrevCol/s:" + ogid, null, "").toString();
-		} catch (Exception e) {
-			nlogger.logout(e);
-			prevCol = null;
-		}
-		return prevCol;
-	}
-
-	public String showstate(String state) {
-		String msg = "";
-		switch (state) {
-		case "1":
-			msg = "待审核";
-			break;
-		case "2":
-			msg = "终审通过";
-			break;
-		case "3":
-			msg = "终审不通过";
-			break;
-		default:
-			msg = "草稿";
-			break;
-		}
-		return msg;
-	}
-
 	/**
 	 * 不同角色区分
 	 * 
@@ -797,12 +1155,11 @@ public class ContentModel {
 	 * @package model
 	 * @file ContentModel.java
 	 * 
-	 * @return roleSign 0：游客；1：总管理员；2：监督管理员；3：企业管理员；4：栏目管理员；5：普通用户；
+	 * @return roleSign 0：游客；1： 普通用户即企业员工；2：栏目管理员；3：企业管理员；4：监督管理员；5：系统管理员
 	 *
 	 */
 	private int getRole() {
 		int roleSign = 0; // 游客
-		String sid = (String) execRequest.getChannelValue("sid");
 		if (sid != null) {
 			try {
 				privilige privil = new privilige(sid);

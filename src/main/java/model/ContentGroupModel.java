@@ -15,21 +15,22 @@ import org.json.simple.JSONObject;
 
 import apps.appsProxy;
 import authority.privilige;
-import authority.userDBHelper;
 import cache.redis;
+import check.formHelper;
+import database.DBHelper;
 import database.db;
-import esayhelper.DBHelper;
+import database.userDBHelper;
 import esayhelper.JSONHelper;
-import esayhelper.formHelper;
 import esayhelper.jGrapeFW_Message;
 import nlogger.nlogger;
 import rpc.execRequest;
+import security.codec;
 import session.session;
 
 public class ContentGroupModel {
 	private static formHelper _form;
 	private static userDBHelper dbcontent;
-	private static DBHelper content;
+	// private static DBHelper content = null;
 	private JSONObject _obj = new JSONObject();
 	private static session session;
 	private JSONObject UserInfo = new JSONObject();
@@ -48,18 +49,37 @@ public class ContentGroupModel {
 		}
 	}
 
+	// private DBHelper getDB() {
+	// nlogger.logout(appsProxy.configValue().get("db").toString());
+	// if (content == null) {
+	// content = new DBHelper(appsProxy.configValue().get("db").toString(),
+	// "objectGroup");
+	// }
+	// return content;
+	// }
+	//
+	// private DBHelper getUserDB() {
+	// nlogger.logout(sid);
+	// if (dbcontent == null) {
+	// dbcontent = new userDBHelper("objectGroup", sid);
+	// }
+	// return dbcontent;
+	// }
+
 	private db bind() {
-		if (sid == null) {
-			content = new DBHelper(appsProxy.configValue().get("db").toString(), "objectGroup");
-			_form = content.getChecker();
-			return content.bind(String.valueOf(appsProxy.appid()));
-		}
-		dbcontent = new userDBHelper("objectGroup", sid);
-		_form = dbcontent.getChecker();
-		return dbcontent.bind(String.valueOf(appsProxy.appid()));
+		// if (sid == null) {
+		// return getDB().bind(String.valueOf(appsProxy.appid()));
+		// }
+		// return getUserDB().bind(String.valueOf(appsProxy.appid()));
+		return dbcontent.bind(appsProxy.appidString());
 	}
 
 	private formHelper getForm() {
+		// if (sid == null) {
+		// _form = getDB().getChecker();
+		// } else {
+		// _form = getUserDB().getChecker();
+		// }
 		_form.putRule("name", formHelper.formdef.notNull);
 		_form.putRule("type", formHelper.formdef.notNull);
 		return _form;
@@ -69,12 +89,17 @@ public class ContentGroupModel {
 	// (String)execRequest.getChannelValue("sid")).bind(String.valueOf(appsProxy.appid()));
 	// }
 
-	private privilige getPrivil(String sid) {
-		return new privilige(sid);
-	}
+	// private privilige getPrivil(String sid) {
+	// return new privilige(sid);
+	// }
 
 	public JSONObject find_contentnamebyName(String name, String type) {
 		JSONObject object = bind().eq("name", name).eq("type", type).find();
+		return object;
+	}
+
+	private JSONObject findBywbid(String name, String type, String wbid, String fatherid) {
+		JSONObject object = bind().eq("name", name).eq("type", type).eq("wbid", wbid).eq("fatherid", fatherid).find();
 		return object;
 	}
 
@@ -91,22 +116,34 @@ public class ContentGroupModel {
 	 * 
 	 */
 	public String AddGroup(JSONObject groupinfo) {
-		if (groupinfo == null) {
-			return resultMessage(0, "内容组插入失败");
+		JSONObject object = null;
+		try {
+			if (groupinfo == null) {
+				return resultMessage(0, "内容组插入失败");
+			}
+			if (!getForm().checkRuleEx(groupinfo)) {
+				return resultMessage(2, "");
+			}
+			String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过300个字数
+			if (!check_name(name)) {
+				return resultMessage(1, "");
+			}
+			String wbid = groupinfo.get("wbid").toString();
+			String type = groupinfo.get("type").toString();
+			String Fatherid = groupinfo.get("fatherid").toString();
+			// if (find_contentnamebyName(name, type) != null) {
+			if (findBywbid(name, type, wbid, Fatherid) != null) {
+				return resultMessage(3, "");
+			}
+			// }
+			String info = bind().data(groupinfo).insertOnce().toString();
+			object = new JSONObject();
+			object = find(info);
+		} catch (Exception e) {
+			nlogger.logout(e);
+			object = null;
 		}
-		if (!getForm().checkRuleEx(groupinfo)) {
-			return resultMessage(2, "");
-		}
-		String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
-		if (!check_name(name)) {
-			return resultMessage(1, "");
-		}
-		String type = groupinfo.get("type").toString();
-		if (find_contentnamebyName(name, type) != null) {
-			return resultMessage(3, "");
-		}
-		String info = bind().data(groupinfo).insertOnce().toString();
-		return resultMessage(find(info));
+		return resultMessage(object);
 	}
 
 	public int UpdateGroup(String ogid, JSONObject groupinfo) {
@@ -142,11 +179,11 @@ public class ContentGroupModel {
 				for (Object object2 : object.keySet()) {
 					if ("_id".equals(object2.toString())) {
 						bind().eq("_id", new ObjectId(object.get("_id").toString()));
-					}else{
+					} else {
 						bind().like(object2.toString(), object.get(object2.toString()));
 					}
 				}
-				array = bind().limit(20).select();
+				array = bind().select();
 			} catch (Exception e) {
 				nlogger.logout(e);
 				array = null;
@@ -167,15 +204,16 @@ public class ContentGroupModel {
 			// 获取角色权限
 			if (rolePlv == 5 || rolePlv == 4) {
 				array = bind().page(idx, pageSize);
-			}else if (rolePlv == 3) {
+			} else if (rolePlv == 3 || rolePlv == 2) {
 				array = bind().eq("wbid", (String) UserInfo.get("currentWeb")).page(idx, pageSize);
-			}else{
-				if (UserInfo!=null) {
-					JSONObject object2 = (JSONObject) UserInfo.get("_id");
-					array = bind().eq("ownid", object2.get("$oid").toString()).page(idx, pageSize);
-				}else{
-					array = bind().eq("slevel", 0).page(idx, pageSize);
-				}
+			} else {
+				// if (UserInfo!=null) {
+				// JSONObject object2 = (JSONObject) UserInfo.get("_id");
+				// array = bind().eq("ownid",
+				// object2.get("$oid").toString()).page(idx, pageSize);
+				// }else{
+				array = bind().eq("slevel", 0).page(idx, pageSize);
+				// }
 			}
 			object = new JSONObject();
 			object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
@@ -213,9 +251,10 @@ public class ContentGroupModel {
 				// 获取角色权限
 				if (roleSign == 5 || roleSign == 4) {
 					array = db.page(idx, pageSize);
-				}
-				if (roleSign == 3) {
+				} else if (roleSign == 3) {
 					array = db.eq("wbid", (String) UserInfo.get("currentWeb")).page(idx, pageSize);
+				} else {
+					array = db.eq("slevel", 0).page(idx, pageSize);
 				}
 				object.put("totalSize", (int) Math.ceil((double) array.size() / pageSize));
 			}
@@ -226,7 +265,7 @@ public class ContentGroupModel {
 		}
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
-		object.put("data", array);
+		object.put("data", join(array));
 		return resultMessage(object);
 	}
 
@@ -314,7 +353,8 @@ public class ContentGroupModel {
 	}
 
 	public boolean check_name(String name) {
-		return (name.length() > 0 && name.length() <= 20);
+		nlogger.logout(name.length());
+		return (name.length() > 0 && name.length() <= 300);
 	}
 
 	// 根据上级栏目id
@@ -369,6 +409,14 @@ public class ContentGroupModel {
 
 	}
 
+	public JSONArray getColumnByWbid(String wbid) {
+		return bind().eq("wbid", wbid).select();
+	}
+
+	public JSONArray getFixedColumn(String wbid) {
+		return bind().eq("wbid", wbid).eq("fixed", "1").select();
+	}
+
 	// 获取模版id，合并到jsonarray
 	@SuppressWarnings("unchecked")
 	private JSONArray join(JSONArray array) {
@@ -395,8 +443,8 @@ public class ContentGroupModel {
 		JSONObject oj = object;
 		if (oj != null) {
 			try {
-				oj.put("tempContent", getTemplate(object.get("tempContent").toString()));
-				oj.put("tempList", getTemplate(object.get("tempList").toString()));
+				oj.put("TemplateContent", getTemplate(object.get("tempContent").toString()));
+				oj.put("TemplateList", getTemplate(object.get("tempList").toString()));
 			} catch (Exception e) {
 				oj = null;
 				nlogger.logout(e);
@@ -486,7 +534,6 @@ public class ContentGroupModel {
 	 */
 	private int getRoleSign() {
 		int roleSign = 0; // 游客
-		String sid = (String) execRequest.getChannelValue("sid");
 		if (sid != null) {
 			try {
 				privilige privil = new privilige(sid);
