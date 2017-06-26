@@ -263,7 +263,7 @@ public class ContentModel {
 	public String AddAll(JSONObject object) {
 		Object tip;
 		String info = checkparam(object);
-		tip = (JSONHelper.string2json(info) != null) ? tip = null : bind().data(info).insertOnce();
+		tip = (JSONHelper.string2json(info) != null && !info.contains("errorcode") ) ? tip = bind().data(info).insertOnce(): null;
 		return tip != null ? tip.toString() : null;
 	}
 
