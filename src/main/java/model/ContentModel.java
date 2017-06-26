@@ -234,8 +234,8 @@ public class ContentModel {
 		List<String> list = getCommonAddr(Contents);
 		for (int i = 0; i < list.size(); i++) {
 			String temp = list.get(i);
-			String string2 = temp.replace(temp, AddUrlPrefix(Contents));
-			if (Contents.contains(temp)) {
+			String string2 = temp.replace(temp, AddUrlPrefix(temp));
+			if (Contents.contains(temp) || !Contents.contains("http://")) {
 				Contents = Contents.replaceAll(temp, string2);
 			}
 		}
