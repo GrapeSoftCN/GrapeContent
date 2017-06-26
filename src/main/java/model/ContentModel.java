@@ -19,6 +19,7 @@ import org.json.simple.JSONObject;
 import apps.appsProxy;
 import authority.privilige;
 import cache.redis;
+import check.checkHelper;
 import check.formHelper;
 import check.formHelper.formdef;
 import database.DBHelper;
@@ -134,10 +135,8 @@ public class ContentModel {
 		}
 		String value = content.get("content").toString();
 		value = codec.DecodeHtmlTag(value);
-		value = codec.decodebase64(value);
-		value = getContent(value);
 		if (JSONHelper.string2json(value) == null) {
-			content.puts("content", codec.encodebase64(value));
+			content.puts("content", value);
 		} else {
 			return value;
 		}
@@ -166,25 +165,30 @@ public class ContentModel {
 	 * @return
 	 *
 	 */
-	private String getContent(String contents) {
-		if (!("").equals(contents)) {
-			contents = contents.toLowerCase();
-			Matcher matcher = ATTR_PATTERN.matcher(contents);
-			int code = matcher.find() ? 0 : contents.contains("/file/upload") ? 1 : 2;
-			switch (code) {
-			case 0: // 文章内容为html带图片类型的内容处理
-				contents = RemoveHtmlPrefix(contents);
-				break;
-			case 1: // 文章内容图片类型处理[获取图片的相对路径]
-				contents = RemoveUrlPrefix(contents);
-				break;
-			case 2: // 文章内容文字类型处理
-				contents = CheckWord(contents);
-				break;
-			}
-		}
-		return contents;
-	}
+//	private String getContent(String contents) {
+//		if (!("").equals(contents)) {
+////			String reg = "";
+//			contents = contents.toLowerCase();
+//			Matcher matcher = ATTR_PATTERN.matcher(contents);
+//			int code = matcher.find() ? 0
+//					: contents.contains("/file/upload") ? 1 :2 ;
+//			switch (code) {
+//			case 0: // 文章内容为html带图片类型的内容处理
+//				contents = RemoveHtmlPrefix(contents);
+//				break;
+//			case 1: // 文章内容图片类型处理[获取图片的相对路径]
+//				contents = RemoveUrlPrefix(contents);
+//				break;
+//			case 2: // 文章内容为纯文字类型处理
+//				contents = CheckWord(contents);
+//				break;
+//			case 3: // 文章内容含有html标签，但是不含有<img>
+//				contents = CheckWord(contents);
+//				break;
+//			}
+//		}
+//		return contents;
+//	}
 
 	// 获取html内容中的图片地址集
 	private List<String> getCommonAddr(String contents) {

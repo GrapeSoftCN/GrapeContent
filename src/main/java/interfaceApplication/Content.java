@@ -181,9 +181,9 @@ public class Content {
 	 */
 	public String findArticle(String oid) {
 		JSONObject object = content.select(oid);
-		if (object == null) {
-			return content.resultMessage(7, "");
-		}
+//		if (object == null) {
+//			return content.resultMessage(7, "");
+//		}
 		return content.resultMessage(object);
 	}
 
