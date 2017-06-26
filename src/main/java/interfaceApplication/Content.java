@@ -17,6 +17,7 @@ import nlogger.nlogger;
 import rpc.execRequest;
 import security.codec;
 import session.session;
+import thirdsdk.kuweiCheck;
 
 @SuppressWarnings("unchecked")
 public class Content {
@@ -122,10 +123,26 @@ public class Content {
 		}
 		return tip;
 	}
-//
-//	private JSONArray BatchSelect(List<String> list){
-//		JSONArray array = content.batch(list);
-//	}
+
+	/**
+	 * 错误字识别
+	 * @project	GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param contents
+	 * @return
+	 *
+	 */
+	public String Typos(String contents){
+		contents = codec.DecodeHtmlTag(contents);
+		kuweiCheck check = new kuweiCheck("377c9dc160bff6cfa3cc0cbc749bb11a");
+		contents = codec.decodebase64(contents);
+		contents = check.checkContent(contents);
+//		nlogger.logout(check.checkContent(codec.decodebase64(contents)));
+		return content.resultMessage(JSONHelper.string2json(contents));
+	}
+	
 	/**
 	 * 修改文章
 	 * 
@@ -265,6 +282,16 @@ public class Content {
 	 * @return
 	 */
 	public String ShowByGroupId(String ogid) {
+//		String decode = "[{\"field\":\"content\",\"decode\":\"base64\"}]";
+////		JSONObject object = new JSONObject();
+//		JSONArray array = content.findByGroupID(ogid);
+//		if (array==null) {
+//			array = new JSONArray();
+//		}
+//		JSONObject obj = new JSONObject("decode", JSONArray.toJSONArray(decode));
+//		obj.put("records", array);
+////		object.put("records", array);
+//		return content.resultMessage(0,obj.toString());
 		return content.resultMessage(content.findByGroupID(ogid));
 	}
 

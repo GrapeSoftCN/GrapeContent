@@ -15,6 +15,10 @@ import org.apache.commons.lang3.ObjectUtils.Null;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import apps.appsProxy;
 import authority.privilige;
@@ -235,15 +239,16 @@ public class ContentModel {
 	 *
 	 */
 	private String AddHtmlPrefix(String Contents) {
-		List<String> list = getCommonAddr(Contents);
-		for (int i = 0; i < list.size(); i++) {
-			String temp = list.get(i);
-			String string2 = temp.replace(temp, AddUrlPrefix(temp));
-			if (Contents.contains(temp) || !Contents.contains("http://")) {
-				Contents = Contents.replaceAll(temp, string2);
-			}
+		Document doc = Jsoup.parse(Contents);
+		if (doc.empty() == null) {
+			return Contents;
 		}
-		return Contents;
+		String imgurl = "http://" + getFileHost(0);
+		Elements element = doc.select("img");
+		for (int i = 0; i < element.size(); i++) {
+			element.get(i).attr("src", imgurl + element.get(i).attr("src"));
+		}
+		return doc.html();
 	}
 
 	// 敏感词检测
@@ -276,7 +281,8 @@ public class ContentModel {
 			db.eq("_id", new ObjectId(string));
 		}
 		array = db.select();
-		return array;
+		JSONArray array2 = dencode(array);
+		return join(getImg(array2));
 	}
 
 	public int UpdateArticle(String oid, JSONObject content) {
@@ -423,11 +429,11 @@ public class ContentModel {
 		try {
 			// 获取角色权限
 			if (roleSign == 5 || roleSign == 4) {
-				array = bind().page(idx, pageSize);
+				array = bind().desc("time").page(idx, pageSize);
 			} else if (roleSign == 3) {
-				array = bind().eq("wbid", (String) UserInfo.get("currentWeb")).page(idx, pageSize);
+				array = bind().eq("wbid", (String) UserInfo.get("currentWeb")).desc("time").page(idx, pageSize);
 			} else {
-				array = bind().eq("state", 2).page(idx, pageSize);
+				array = bind().eq("state", 2).desc("time").page(idx, pageSize);
 			}
 			object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
 		} catch (Exception e) {
@@ -486,7 +492,7 @@ public class ContentModel {
 				} else {
 					db.eq("slevel", 0);
 					// array = db.dirty().eq("state", 2).page(idx, pageSize);
-					array = db.dirty().page(idx, pageSize);
+					array = db.dirty().desc("time").page(idx, pageSize);
 				}
 				object.put("totalSize", (int) Math.ceil((double) db.count() / pageSize));
 			} else {
@@ -721,19 +727,31 @@ public class ContentModel {
 	// 根据栏目id查询文章
 	public JSONArray findByGroupID(String ogid) {
 		JSONArray array = null;
+		JSONArray array2 = new JSONArray();
+		JSONObject object;
 		try {
 			array = bind().eq("state", 2).eq("ogid", ogid).desc("time").limit(20).select();
 			array = join(getImg(dencode(array)));
+//			for (Object obj : array) {
+//				object = (JSONObject) obj;
+//				object.put("content", codec.encodebase64(object.getString("content")));
+//				array2.add(object);
+//			}
+			for (Object obj : array) {
+				object = (JSONObject) obj;
+				object.remove("content");
+				array2.add(object);
+			}
 		} catch (Exception e) {
 			nlogger.logout(e);
-			array = null;
+			array2 = null;
 		}
-		return array;
+		return array2;
 	}
 
 	public JSONArray findByGroupID(String ogid, int no) {
 		// 通过模糊查询，查询出该ogid对应的文章
-		JSONArray array = bind().eq("state", 2).eq("ogid", ogid).limit(no).select();
+		JSONArray array = bind().eq("state", 2).eq("ogid", ogid).desc("time").limit(no).select();
 		return getImg(array);
 	}
 
@@ -1274,9 +1292,11 @@ public class ContentModel {
 		_obj.put("records", object);
 		return resultMessage(0, _obj.toString());
 	}
+
 	public String resultMessage(int code) {
 		return resultMessage(code, "");
 	}
+
 	public String resultMessage(JSONArray array) {
 		if (array == null) {
 			array = new JSONArray();
