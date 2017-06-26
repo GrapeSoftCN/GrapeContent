@@ -165,30 +165,30 @@ public class ContentModel {
 	 * @return
 	 *
 	 */
-//	private String getContent(String contents) {
-//		if (!("").equals(contents)) {
-////			String reg = "";
-//			contents = contents.toLowerCase();
-//			Matcher matcher = ATTR_PATTERN.matcher(contents);
-//			int code = matcher.find() ? 0
-//					: contents.contains("/file/upload") ? 1 :2 ;
-//			switch (code) {
-//			case 0: // 文章内容为html带图片类型的内容处理
-//				contents = RemoveHtmlPrefix(contents);
-//				break;
-//			case 1: // 文章内容图片类型处理[获取图片的相对路径]
-//				contents = RemoveUrlPrefix(contents);
-//				break;
-//			case 2: // 文章内容为纯文字类型处理
-//				contents = CheckWord(contents);
-//				break;
-//			case 3: // 文章内容含有html标签，但是不含有<img>
-//				contents = CheckWord(contents);
-//				break;
-//			}
-//		}
-//		return contents;
-//	}
+	// private String getContent(String contents) {
+	// if (!("").equals(contents)) {
+	//// String reg = "";
+	// contents = contents.toLowerCase();
+	// Matcher matcher = ATTR_PATTERN.matcher(contents);
+	// int code = matcher.find() ? 0
+	// : contents.contains("/file/upload") ? 1 :2 ;
+	// switch (code) {
+	// case 0: // 文章内容为html带图片类型的内容处理
+	// contents = RemoveHtmlPrefix(contents);
+	// break;
+	// case 1: // 文章内容图片类型处理[获取图片的相对路径]
+	// contents = RemoveUrlPrefix(contents);
+	// break;
+	// case 2: // 文章内容为纯文字类型处理
+	// contents = CheckWord(contents);
+	// break;
+	// case 3: // 文章内容含有html标签，但是不含有<img>
+	// contents = CheckWord(contents);
+	// break;
+	// }
+	// }
+	// return contents;
+	// }
 
 	// 获取html内容中的图片地址集
 	private List<String> getCommonAddr(String contents) {
@@ -263,8 +263,20 @@ public class ContentModel {
 	public String AddAll(JSONObject object) {
 		Object tip;
 		String info = checkparam(object);
-		tip = (JSONHelper.string2json(info) != null && !info.contains("errorcode") ) ? tip = bind().data(info).insertOnce(): null;
+		tip = (JSONHelper.string2json(info) != null && !info.contains("errorcode"))
+				? tip = bind().data(info).insertOnce() : null;
 		return tip != null ? tip.toString() : null;
+	}
+
+	// 批量查询
+	public JSONArray batch(List<String> list) {
+		JSONArray array = new JSONArray();
+		db db = bind().or();
+		for (String string : list) {
+			db.eq("_id", new ObjectId(string));
+		}
+		array = db.select();
+		return array;
 	}
 
 	public int UpdateArticle(String oid, JSONObject content) {
@@ -1262,7 +1274,9 @@ public class ContentModel {
 		_obj.put("records", object);
 		return resultMessage(0, _obj.toString());
 	}
-
+	public String resultMessage(int code) {
+		return resultMessage(code, "");
+	}
 	public String resultMessage(JSONArray array) {
 		if (array == null) {
 			array = new JSONArray();

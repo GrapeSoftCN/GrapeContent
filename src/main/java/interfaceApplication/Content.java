@@ -94,6 +94,7 @@ public class Content {
 	 *
 	 */
 	public String AddAllArticle(String ArticleInfo) {
+		String tip = content.resultMessage(99);
 		JSONObject object;
 		String info;
 		List<String> list = new ArrayList<>();
@@ -113,10 +114,18 @@ public class Content {
 				code = 0;
 				list.add(info);
 			}
+			if (code==0) {
+				tip = content.resultMessage(content.batch(list));
+			}else{
+				tip = content.resultMessage(99);
+			}
 		}
-		return content.resultMessage(code, "批量发布文章成功");
+		return tip;
 	}
-
+//
+//	private JSONArray BatchSelect(List<String> list){
+//		JSONArray array = content.batch(list);
+//	}
 	/**
 	 * 修改文章
 	 * 
