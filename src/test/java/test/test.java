@@ -12,7 +12,7 @@ public class test {
 		 try {
 		 System.out.println("GrapeContent!");
 		 System.setProperty("AppName", "GrapeContent");
-		 booter.start(1003);
+		 booter.start(1006);
 		} catch (Exception e) {
 		}
 		//// System.out.println(new

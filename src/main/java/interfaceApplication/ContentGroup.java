@@ -1,6 +1,5 @@
 package interfaceApplication;
 
-import java.awt.image.AreaAveragingScaleFilter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -9,15 +8,13 @@ import java.util.List;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
-
 import apps.appsProxy;
-import esayhelper.JSONHelper;
-import esayhelper.StringHelper;
+import json.JSONHelper;
 import model.ContentGroupModel;
 import nlogger.nlogger;
 import rpc.execRequest;
 import session.session;
+import string.StringHelper;
 
 public class ContentGroup {
 	private ContentGroupModel group = new ContentGroupModel();
@@ -30,7 +27,9 @@ public class ContentGroup {
 		if (sid != null) {
 			userInfo = session.getSession(sid);
 		}
-		defcol.put("ownid", 0);
+		String ownid = (userInfo != null && userInfo.size() != 0) ? ((JSONObject) userInfo.get("_id")).getString("$oid")
+				: "";
+		defcol.put("ownid", ownid);
 		defcol.put("fatherid", "0");
 		defcol.put("sort", 0);
 		defcol.put("isvisble", 0);
@@ -54,12 +53,6 @@ public class ContentGroup {
 
 	// 编辑
 	public String GroupEdit(String ogid, String groupInfo) {
-		// String uPLV = group.find(ogid).get("uplv").toString();
-		// String tip = execRequest._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV
-		// + "/s:" + userId, null).toString();
-		// if (!"0".equals(tip)) {
-		// return group.resultMessage(5, "没有编辑权限");
-		// }
 		return group.resultMessage(group.UpdateGroup(ogid, JSONHelper.string2json(groupInfo)), "更新内容组数据成功");
 	}
 
@@ -112,12 +105,6 @@ public class ContentGroup {
 
 	// 设置排序值
 	public String GroupSort(String ogid, int num) {
-		// String uPLV = group.find(ogid).get("uplv").toString();
-		// String tip = execRequest._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV
-		// + "/s:" + userId, null).toString();
-		// if (!"0".equals(tip)) {
-		// return group.resultMessage(5, "没有编辑权限");
-		// }
 		return group.resultMessage(group.setsort(ogid, num), "顺序调整成功");
 	}
 
@@ -133,34 +120,16 @@ public class ContentGroup {
 
 	// 设置密级
 	public String GroupSlevel(String ogid, int slevel) {
-		// String uPLV = group.find(ogid).get("uplv").toString();
-		// String tip = execRequest._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV
-		// + "/s:" + userId, null).toString();
-		// if (!"0".equals(tip)) {
-		// return group.resultMessage(5, "没有编辑权限");
-		// }
 		return group.resultMessage(group.setslevel(ogid, slevel), "密级更新成功");
 	}
 
 	// 设置模版
 	public String GroupSetTemp(String ogid, String tempid) {
-		// String uPLV = group.find(ogid).get("uplv").toString();
-		// String tip = execRequest._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV
-		// + "/s:" + userId, null).toString();
-		// if (!"0".equals(tip)) {
-		// return group.resultMessage(5, "没有编辑权限");
-		// }
 		return group.resultMessage(group.setTempId(ogid, tempid), "更新模版成功");
 	}
 
 	// 设置上级栏目
 	public String GroupSetFatherid(String ogid, int fatherid) {
-		// String uPLV = group.find(ogid).get("uplv").toString();
-		// String tip = execRequest._run("GrapeAuth/Auth/UpdatePLV/s:" + uPLV
-		// + "/s:" + userId, null).toString();
-		// if (!"0".equals(tip)) {
-		// return group.resultMessage(5, "没有编辑权限");
-		// }
 		return group.resultMessage(group.setfatherid(ogid, fatherid), "成功设置上级栏目");
 	}
 
@@ -174,44 +143,34 @@ public class ContentGroup {
 		return group.getColumnByFid(ogid);
 	}
 
-	// 获得上级栏目id，name，fatherid
-	public String getPrevCol(String ogid) {
-		JSONObject rs = null;
-		if (!ogid.equals("0")) {
-			rs = new JSONObject();
-			rs = group.find(ogid);
-		}
-		return rs != null ? rs.toString() : "";
-	}
-
 	// 获取当前文章所在栏目位置
-	@SuppressWarnings("unchecked")
-	public String getPreColumn(String ogid) {
-		List<JSONObject> list = null;
+	public String getPrevCol(String ogid) {
+		List<JSONObject> list = new ArrayList<>();
+		JSONArray array = null;
 		try {
-			list = new ArrayList<>();
-			JSONObject object = group.find(ogid);
-			JSONObject obj = new JSONObject();
-
-			String fatherid = object.get("fatherid").toString();
-			JSONObject objID = (JSONObject) object.get("_id");
-			obj.put("_id", objID.get("$oid").toString());
-			obj.put("name", object.get("name").toString());
-			list.add(obj);
-			if (!fatherid.contains("$numberLong")) {
-				while (!"0".equals(fatherid)) {
-					String prevCol = getPrevCol(fatherid);
-					fatherid = JSONHelper.string2json(prevCol).get("fatherid").toString();
-					list = group.getName(list, JSONHelper.string2json(prevCol));
-
-				}
-			}
+			array = new JSONArray();
+			list = getPrevCol(list, ogid);
 			Collections.reverse(list); // list倒序排列
+			array = JSONHelper.string2array(list.toString());
 		} catch (Exception e) {
 			nlogger.logout(e);
-			list = null;
+			array = null;
 		}
-		return list != null ? group.resultMessage(JSONHelper.string2array(list.toString())) : "";
+		return group.resultMessage(array);
+	}
+
+	// 获得上级栏目id，name，fatherid
+	private List<JSONObject> getPrevCol(List<JSONObject> list, String ogid) {
+		JSONObject rs = null;
+		String fatherid;
+		if (!ogid.contains("$numberLong") && !("0").equals(ogid)) {
+			rs = new JSONObject();
+			rs = group.findWeb(ogid);
+			list = group.getName(list, rs);
+			fatherid = (rs != null && rs.size() != 0) ? rs.getString("fatherid") : "0";
+			list = getPrevCol(list, fatherid);
+		}
+		return list;
 	}
 
 	// 设置栏目管理员 userid为用户表 _id
@@ -219,14 +178,36 @@ public class ContentGroup {
 		return group.setColumManage(ogid, userid);
 	}
 
-	// 根据网站id获取固定栏目信息
-	public String getFixedColumn(String wbid) {
-		JSONArray array = group.getFixedColumn(wbid);
-		return (array != null && array.size() != 0) ? array.toString() : "";
+	// 设置栏目编辑 userid为用户表 _id !!
+	public String setEditer(String ogid, String userid) {
+		return group.setColumManage(ogid, userid);
 	}
 
+	// 获取某网站下的栏目
 	public String getPrevColumn(String wbid) {
 		JSONArray array = group.getColumnByWbid(wbid);
 		return array != null ? array.toString() : "";
+	}
+
+	public String getGroupById(String ogid) {
+		JSONObject object = group.find(ogid);
+		return group.resultMessage(object);
+	}
+
+	public String getGroupByIds(String ogid) {
+		JSONObject object = group.find(ogid);
+		return object != null ? object.toString() : "";
+	}
+
+	// 获取该栏目下，栏目管理员
+	public String getManagerByOgid(String ogid) {
+		JSONObject object = group.findOwnid(ogid);
+		return object != null ? object.toString() : "";
+	}
+
+	// 根据用户id，网站id，获取栏目id,name
+	public String getColumnId(String condString) {
+		JSONArray array = group.findColumn(condString);
+		return (array != null && array.size() != 0) ? array.toString() : "";
 	}
 }
