@@ -6,10 +6,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Map.Entry;
+import java.util.Properties;
 
-import org.apache.commons.lang3.ObjectUtils.Null;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -17,16 +16,12 @@ import org.json.simple.JSONObject;
 import JGrapeSystem.jGrapeFW_Message;
 import apps.appsProxy;
 import authority.privilige;
-import cache.redis;
 import check.formHelper;
-import database.DBHelper;
 import database.db;
 import database.userDBHelper;
 import json.JSONHelper;
 import nlogger.nlogger;
 import rpc.execRequest;
-import security.codec;
-import session.session;
 import string.StringHelper;
 
 public class ContentGroupModel {
@@ -34,22 +29,21 @@ public class ContentGroupModel {
 	private static userDBHelper dbcontent;
 	private String appid = String.valueOf(appsProxy.appid());
 	private JSONObject _obj = new JSONObject();
-	private static session session;
-	private JSONObject UserInfo = new JSONObject();
+	// private static session session;
+	// private JSONObject UserInfo = new JSONObject();
 	private String sid = "";
 
 	static {
-		session = new session();
-		nlogger.logout((String) execRequest.getChannelValue("sid"));
+		// session = new session();
 		dbcontent = new userDBHelper("objectGroup", (String) execRequest.getChannelValue("sid"));
 		_form = dbcontent.getChecker();
 	}
 
 	public ContentGroupModel() {
 		sid = (String) execRequest.getChannelValue("sid");
-		if (sid != null) {
-			UserInfo = session.getSession(sid);
-		}
+		// if (sid != null) {
+		// UserInfo = session.getSession(sid);
+		// }
 	}
 
 	private db bind() {
@@ -59,6 +53,7 @@ public class ContentGroupModel {
 	private formHelper getForm() {
 		_form.putRule("name", formHelper.formdef.notNull);
 		_form.putRule("type", formHelper.formdef.notNull);
+		_form.putRule("wbid", formHelper.formdef.notNull);
 		return _form;
 	}
 
@@ -187,20 +182,30 @@ public class ContentGroupModel {
 	}
 
 	@SuppressWarnings("unchecked")
-	public String page(int idx, int pageSize) {
+	public String page(String wbid, int idx, int pageSize) {
+		db db = bind();
 		int rolePlv = getRoleSign();
 		JSONObject object = new JSONObject();
 		try {
 			JSONArray array = new JSONArray();
 			// 获取角色权限
-			if (rolePlv == 5 || rolePlv == 4) {
-				array = bind().page(idx, pageSize);
-			} else if (rolePlv == 3 || rolePlv == 2) {
-				array = bind().eq("wbid", (String) UserInfo.get("currentWeb")).page(idx, pageSize);
+			// if (rolePlv == 5 || rolePlv == 4) {
+			// array = bind().page(idx, pageSize);
+			// } else if (rolePlv == 3 || rolePlv == 2) {
+			// array = bind().eq("wbid", (String)
+			// UserInfo.get("currentWeb")).page(idx, pageSize);
+			// } else {
+			// array = bind().eq("slevel",
+			// 0).field("_id,name,tempContent,tempList,fatherid,type,contentType")
+			// .page(idx, pageSize);
+			// }
+
+			if (rolePlv == 2 || rolePlv == 1 || rolePlv == 0) {
+				db.eq("wbid", wbid).eq("slevel", 0).mask("r,u,d");
 			} else {
-				array = bind().eq("slevel", 0).field("_id,name,tempContent,tempList,fatherid,type,contentType")
-						.page(idx, pageSize);
+				db.eq("wbid", wbid).mask("r,u,d");
 			}
+			array = db.dirty().asc("sort").page(idx, pageSize);
 			object = new JSONObject();
 			object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
 			object.put("data", join(array));
@@ -215,7 +220,7 @@ public class ContentGroupModel {
 	}
 
 	@SuppressWarnings("unchecked")
-	public String page(int idx, int pageSize, JSONObject GroupInfo) {
+	public String page(String wbid, int idx, int pageSize, JSONObject GroupInfo) {
 		db db = bind();
 		JSONObject object = new JSONObject();
 		JSONArray array = new JSONArray();
@@ -230,16 +235,19 @@ public class ContentGroupModel {
 				// 获取角色权限
 				int roleSign = getRoleSign();
 				// 获取角色权限
-				if (roleSign == 5 || roleSign == 4) {
-					array = db.page(idx, pageSize);
-				} else if (roleSign == 3) {
-					db.eq("wbid", (String) UserInfo.get("currentWeb"));
-					array = db.dirty().page(idx, pageSize);
+				/*
+				 * if (roleSign == 5 || roleSign == 4) {
+				 * 
+				 * } else if (roleSign == 3) { db.eq("wbid", wbid); array =
+				 * db.dirty().page(idx, pageSize); } else { db.eq("slevel", 0);
+				 * array = db.dirty().asc("sort").page(idx, pageSize); }
+				 */
+				if (roleSign == 2 || roleSign == 1 || roleSign == 0) {
+					db.eq("wbid", wbid).eq("slevel", 0);
 				} else {
-					db.eq("slevel", 0);
-					array = db.dirty().asc("sort").page(idx, pageSize);
+					db.eq("wbid", wbid);
 				}
-
+				array = db.dirty().asc("sort").page(idx, pageSize);
 				object.put("totalSize", (int) Math.ceil((double) db.count() / pageSize));
 			} else {
 				object.put("totalSize", 0);
@@ -388,7 +396,7 @@ public class ContentGroupModel {
 	@SuppressWarnings("unchecked")
 	public List<JSONObject> getName(List<JSONObject> list, JSONObject object) {
 		JSONObject obj = new JSONObject();
-		if (object!=null) {
+		if (object != null) {
 			JSONObject objID = (JSONObject) object.get("_id");
 			obj.put("_id", objID.get("$oid").toString());
 			obj.put("name", object.get("name").toString());
@@ -406,7 +414,7 @@ public class ContentGroupModel {
 	@SuppressWarnings("unchecked")
 	private JSONArray join(JSONArray array) {
 		JSONObject object;
-		if (array == null || array.size() == 0  ) {
+		if (array == null || array.size() == 0) {
 			return array;
 		}
 		try {
@@ -418,10 +426,15 @@ public class ContentGroupModel {
 				object = (JSONObject) array.get(i);
 				content = object.getString("tempContent");
 				list = object.getString("tempList");
-				tid += list + "," + content + ",";
+				if (!content.equals("")) {
+					tid +=content+",";
+				}
+				if (!list.equals("")) {
+					tid +=list+",";
+				}
+				
 			}
-
-			if (tid.length() > 0) {
+			if (!tid.equals("") &&tid.length() > 0) {
 				tid = StringHelper.fixString(tid, ',');
 				/*
 				 * tid,tid,tid,tid,tid,tid,tid,tid,tid, {"tid":"name"}
@@ -494,31 +507,18 @@ public class ContentGroupModel {
 		return object;
 	}
 
-	private String getTemplate(String tid) {
-		String temp = "";
-		redis redis = new redis();
-		long start = System.currentTimeMillis();
-		try {
-			if (!("0").equals(tid) && !("").equals(tid)) {
-				if (redis.get(tid) != null) {
-					return redis.get(tid).toString();
-				} else {
-					temp = appsProxy.proxyCall(getHost(0),
-							String.valueOf(appsProxy.appid()) + "/19/TemplateContext/TempFindByTid/s:" + tid, null, "")
-							.toString();
-					redis.set(tid, temp);
-					redis.setExpire(tid, 10 * 3600);
-					return temp;
-				}
-			}
-		} catch (Exception e) {
-			nlogger.logout(e);
-			temp = "";
-		}
-		long end = System.currentTimeMillis();
-		System.out.println("getTemp:  " + (end - start));
-		return temp;
-	}
+	/*
+	 * private String getTemplate(String tid) { String temp = ""; redis redis =
+	 * new redis(); long start = System.currentTimeMillis(); try { if
+	 * (!("0").equals(tid) && !("").equals(tid)) { if (redis.get(tid) != null) {
+	 * return redis.get(tid).toString(); } else { temp =
+	 * appsProxy.proxyCall(getHost(0), String.valueOf(appsProxy.appid()) +
+	 * "/19/TemplateContext/TempFindByTid/s:" + tid, null, "") .toString();
+	 * redis.set(tid, temp); redis.setExpire(tid, 10 * 3600); return temp; } } }
+	 * catch (Exception e) { nlogger.logout(e); temp = ""; } long end =
+	 * System.currentTimeMillis(); System.out.println("getTemp:  " + (end -
+	 * start)); return temp; }
+	 */
 
 	/**
 	 * 将map添加至JSONObject中
@@ -565,6 +565,33 @@ public class ContentGroupModel {
 			}
 		}
 		return resultMessage(code, "设置栏目管理员成功");
+	}
+
+	@SuppressWarnings("unchecked")
+	public JSONArray getPrev(String ogid) {
+		JSONArray rList = new JSONArray();
+		JSONObject temp = null;
+		String tempID = ogid;
+		if (ogid != null && !ogid.equals("")) {
+			while (temp == null) {
+				temp = bind().eq("_id", tempID).field("_id,name,fatherid").find();
+				if (temp != null) {
+					rList.add(temp);
+					if (temp.containsKey("fatherid")) {
+						tempID = temp.getString("fatherid");
+					} else {
+						temp = null;
+					}
+				}
+			}
+		}
+		for (int i = 0; i < rList.size(); i++) {
+			temp = (JSONObject) rList.get(i);
+			tempID = ((JSONObject) temp.get("_id")).getString("$oid");
+			temp.put("_id", tempID);
+			rList.set(i, temp);
+		}
+		return rList;
 	}
 
 	/**

@@ -1,7 +1,6 @@
 package interfaceApplication;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
@@ -20,11 +19,12 @@ public class ContentGroup {
 	private ContentGroupModel group = new ContentGroupModel();
 	private HashMap<String, Object> defcol = new HashMap<>();
 	private static session session = new session();
+	private JSONObject userInfo = null;
 
 	public ContentGroup() {
-		JSONObject userInfo = new JSONObject();
 		String sid = (String) execRequest.getChannelValue("sid");
 		if (sid != null) {
+			userInfo = new JSONObject();
 			userInfo = session.getSession(sid);
 		}
 		String ownid = (userInfo != null && userInfo.size() != 0) ? ((JSONObject) userInfo.get("_id")).getString("$oid")
@@ -108,14 +108,42 @@ public class ContentGroup {
 		return group.resultMessage(group.setsort(ogid, num), "顺序调整成功");
 	}
 
+	/*-------------------前台------*/
 	// 分页
-	public String GroupPage(int idx, int pageSize) {
-		return group.page(idx, pageSize);
+	public String GroupPage(String wbid, int idx, int pageSize) {
+		if (userInfo != null && userInfo.size() != 0) {
+			wbid = userInfo.get("currentWeb").toString();
+		}
+		return group.page(wbid, idx, pageSize);
 	}
 
 	// 条件分页
-	public String GroupPageBy(int idx, int pageSize, String GroupInfo) {
-		return group.page(idx, pageSize, JSONHelper.string2json(GroupInfo));
+	public String GroupPageBy(String wbid, int idx, int pageSize, String GroupInfo) {
+		if (userInfo != null && userInfo.size() != 0) {
+			wbid = userInfo.get("currentWeb").toString();
+		}
+		return group.page(wbid, idx, pageSize, JSONHelper.string2json(GroupInfo));
+	}
+
+	/*-------------------后台------*/
+	// 分页
+	public String GroupPageBack(int idx, int pageSize) {
+		String result = group.resultMessage(new JSONArray());
+		if (userInfo != null && userInfo.size() != 0) {
+			String wbid = userInfo.get("currentWeb").toString();
+			result = group.page(wbid, idx, pageSize);
+		}
+		return result;
+	}
+
+	// 条件分页
+	public String GroupPageByBack(int idx, int pageSize, String GroupInfo) {
+		String result = group.resultMessage(new JSONArray());
+		if (userInfo != null && userInfo.size() != 0) {
+			String wbid = userInfo.get("currentWeb").toString();
+			result = group.page(wbid, idx, pageSize, JSONHelper.string2json(GroupInfo));
+		}
+		return result;
 	}
 
 	// 设置密级
@@ -144,7 +172,7 @@ public class ContentGroup {
 	}
 
 	// 获取当前文章所在栏目位置
-	public String getPrevCol(String ogid) {
+	/*public String getPrevCol(String ogid) {
 		List<JSONObject> list = new ArrayList<>();
 		JSONArray array = null;
 		try {
@@ -157,10 +185,13 @@ public class ContentGroup {
 			array = null;
 		}
 		return group.resultMessage(array);
+	}*/
+	public String getPrevCol(String ogid) {
+		JSONArray array = group.getPrev(ogid);
+		return group.resultMessage(array);
 	}
-
 	// 获得上级栏目id，name，fatherid
-	private List<JSONObject> getPrevCol(List<JSONObject> list, String ogid) {
+	/*private List<JSONObject> getPrevCol(List<JSONObject> list, String ogid) {
 		JSONObject rs = null;
 		String fatherid;
 		if (!ogid.contains("$numberLong") && !("0").equals(ogid)) {
@@ -171,7 +202,7 @@ public class ContentGroup {
 			list = getPrevCol(list, fatherid);
 		}
 		return list;
-	}
+	}*/
 
 	// 设置栏目管理员 userid为用户表 _id
 	public String setManage(String ogid, String userid) {

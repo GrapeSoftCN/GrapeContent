@@ -9,7 +9,6 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import apps.appsProxy;
-import database.DBHelper;
 import json.JSONHelper;
 import model.ContentModel;
 import nlogger.nlogger;
@@ -156,28 +155,33 @@ public class Content {
 	 * @return
 	 */
 	public String EditArticle(String oid, String contents) {
+		int code = 99;
 		JSONObject infos = JSONHelper.string2json(contents);
-		if (infos != null) {
-			try {
-				String value = infos.get("content").toString();
-				value = codec.DecodeHtmlTag(value);
-				value = codec.decodebase64(value);
-				infos.escapeHtmlPut("content", value);
-				if (infos.containsKey("image")) {
-					String image = infos.get("image").toString();
-					image = getImageUri(codec.DecodeHtmlTag(image));
-					if (image != null) {
-						infos.put("image", image);
+		if (UserInfo != null && UserInfo.size() != 0) {
+			String wbid = UserInfo.get("currentWeb").toString();
+			if (infos != null) {
+				try {
+					String value = infos.get("content").toString();
+					value = codec.DecodeHtmlTag(value);
+					value = codec.decodebase64(value);
+					infos.escapeHtmlPut("content", value);
+					if (infos.containsKey("image")) {
+						String image = infos.get("image").toString();
+						image = getImageUri(codec.DecodeHtmlTag(image));
+						if (image != null) {
+							infos.put("image", image);
+						}
 					}
+					if (infos.containsKey("time")) {
+						infos.put("time", Long.parseLong(infos.getString("time")));
+					}
+				} catch (Exception e) {
+					nlogger.logout(e);
 				}
-				if (infos.containsKey("time")) {
-					infos.put("time", Long.parseLong(infos.getString("time")));
-				}
-			} catch (Exception e) {
-				nlogger.logout(e);
 			}
+			code = content.UpdateArticle(wbid,oid, infos);
 		}
-		return content.resultMessage(content.UpdateArticle(oid, infos), "文章更新成功");
+		return content.resultMessage(code, "文章更新成功");
 	}
 
 	/**
@@ -188,7 +192,12 @@ public class Content {
 	 * @return
 	 */
 	public String DeleteArticle(String oid) {
-		return content.resultMessage(content.DeleteArticle(oid), "文章删除成功");
+		int code = 99;
+		if (UserInfo!=null|| UserInfo.size()!=0) {
+			String wbid = UserInfo.get("currentWeb").toString();
+			code = content.DeleteArticle(wbid,oid);
+		}
+		return content.resultMessage(code, "文章删除成功");
 	}
 
 	/**
@@ -209,7 +218,16 @@ public class Content {
 		return content.findnew(ogid);
 	}
 
-	// 获取最新公开的指定数量的信息
+	/**
+	 * 获取最新公开的指定数量的信息
+	 * @project	GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param size
+	 * @return
+	 *
+	 */
 	public String FindOpen(int size) {
 		return content.findnew(size);
 	}
@@ -219,8 +237,12 @@ public class Content {
 	 * 
 	 * @return
 	 */
-	public String findArticle(String oid) {
+	/*public String findArticle(String oid) {
 		JSONObject object = content.select(oid);
+		return content.resultMessage(object);
+	}*/
+	public String findArticle(String oid) {
+		JSONObject object = content.find(oid);
 		return content.resultMessage(object);
 	}
 
@@ -257,15 +279,15 @@ public class Content {
 	 * @param jsonstring
 	 * @return
 	 */
-	public String SearchArticle(String condString) {
-		JSONArray array = content.search(JSONHelper.string2json(condString));
-		return content.resultMessage(array);
+	public String SearchArticle(String wbid,int ids,int pageSize,String condString) {
+		JSONObject object = content.search(wbid,ids,pageSize,condString);
+		return content.resultMessage(object);
 	}
 
-	public String SearchArticles(String condString, int no) {
-		JSONArray array = content.search(JSONHelper.string2json(condString), no);
+	/*public String SearchArticles(String wbid,String condString, int no) {
+		JSONArray array = content.search(wbid,JSONHelper.string2json(condString), no);
 		return content.resultMessage(array);
-	}
+	}*/
 
 	/*----------------后台搜索-----------------*/
 	/**
@@ -274,14 +296,13 @@ public class Content {
 	 * @param jsonstring
 	 * @return
 	 */
-	public String SearchArticleBack(String condString) {
-		JSONArray array = content.searchBack(JSONHelper.string2json(condString));
-		return content.resultMessage(array);
-	}
-
-	public String SearchArticlesBack(String condString, int no) {
-		JSONArray array = content.searchBack(JSONHelper.string2json(condString), no);
-		return content.resultMessage(array);
+	public String SearchArticleBack(int ids,int pageSize,String condString) {
+		JSONObject object = null;
+		if (UserInfo!=null|| UserInfo.size()!=0) {
+			String wbid = UserInfo.get("currentWeb").toString();
+			object = content.searchBack(wbid,ids,pageSize,condString);
+		}
+		return content.resultMessage(object);
 	}
 
 	/**
@@ -293,8 +314,11 @@ public class Content {
 	 *            每页显示量
 	 * @return
 	 */
-	public String Page(int idx, int pageSize) {
-		JSONObject object = content.page(idx, pageSize);
+	public String Page(String wbid,int idx, int pageSize) {
+		if (UserInfo != null && UserInfo.size() != 0) {
+			wbid = UserInfo.get("currentWeb").toString();
+		}
+		JSONObject object = content.page(wbid,idx, pageSize);
 		return content.resultMessage(object);
 	}
 
@@ -302,10 +326,15 @@ public class Content {
 		JSONObject object = content.page2(idx, pageSize, JSONHelper.string2json(contents));
 		return content.resultMessage(object);
 	}
-	public String PageBy(int idx, int pageSize, String contents) {
-		JSONObject object = content.page(idx, pageSize, JSONHelper.string2json(contents));
+
+	public String PageBy(String wbid,int idx, int pageSize, String contents) {
+		if (UserInfo != null && UserInfo.size() != 0) {
+			wbid = UserInfo.get("currentWeb").toString();
+		}
+		JSONObject object = content.page(wbid,idx, pageSize, JSONHelper.string2json(contents));
 		return content.resultMessage(object);
 	}
+
 	public String PageBack(int idx, int pageSize) {
 		return content.resultMessage(content.pageBack(idx, pageSize));
 	}
@@ -321,8 +350,8 @@ public class Content {
 	 * @param ogid
 	 * @return
 	 */
-	public String ShowByGroupId(String ogid) {
-		return content.resultMessage(content.findByGroupID(ogid));
+	public String ShowByGroupId(String wbid,String ogid) {
+		return content.resultMessage(content.findByGroupID(wbid,ogid));
 	}
 
 	/*----------前台页面幻灯片显示-------------*/
@@ -332,8 +361,8 @@ public class Content {
 	 * @param ogid
 	 * @return
 	 */
-	public String ShowPicByGroupId(String ogid) {
-		return content.resultMessage(content.findPicByGroupID(ogid));
+	public String ShowPicByGroupId(String wbid,String ogid) {
+		return content.resultMessage(content.findPicByGroupID(wbid,ogid));
 	}
 
 	/**
@@ -391,7 +420,12 @@ public class Content {
 	 * @return
 	 */
 	public String DeleteByOgid(String oid, String ogid) {
-		return content.resultMessage(content.deleteByOgID(oid, ogid), "该栏目下文章删除成功");
+		int code = 99;
+		if (UserInfo!=null|| UserInfo.size()!=0) {
+			String wbid = UserInfo.get("currentWeb").toString();
+			code = content.deleteByOgID(wbid,oid,ogid);
+		}
+		return content.resultMessage(code, "该栏目下文章删除成功");
 	}
 
 	/**
@@ -408,20 +442,40 @@ public class Content {
 	}
 
 	public String SetTempId(String oid, String tempid) {
-		return content.resultMessage(content.setTempId(oid, tempid), "设置模版成功");
+		int code = 99;
+		if (UserInfo!=null|| UserInfo.size()!=0) {
+			String wbid = UserInfo.get("currentWeb").toString();
+			code = content.setTempId(wbid,oid,tempid);
+		}
+		return content.resultMessage(code, "设置模版成功");
 	}
 
 	public String Setfatherid(String oid, String fatherid) {
-		return content.resultMessage(content.setfatherid(oid, fatherid), "设置模版成功");
+		int code = 99;
+		if (UserInfo!=null|| UserInfo.size()!=0) {
+			String wbid = UserInfo.get("currentWeb").toString();
+			code = content.setfatherid(wbid,oid,fatherid);
+		}
+		return content.resultMessage(code, "设置模版成功");
 	}
 
 	public String Setslevel(String oid, String slevel) {
-		return content.resultMessage(content.setslevel(oid, slevel), "设置密级成功");
+		int code = 99;
+		if (UserInfo!=null|| UserInfo.size()!=0) {
+			String wbid = UserInfo.get("currentWeb").toString();
+			code = content.setslevel(wbid,oid,slevel);
+		}
+		return content.resultMessage(code, "设置密级成功");
 	}
 
 	// 审核
 	public String Review(String oid, String managerid, String state) {
-		return content.resultMessage(content.review(oid, managerid, state), "审核文章操作成功");
+		int code = 99;
+		if (UserInfo!=null|| UserInfo.size()!=0) {
+			String wbid = UserInfo.get("currentWeb").toString();
+			code = content.review(wbid,oid, managerid, state);
+		}
+		return content.resultMessage(code, "审核文章操作成功");
 	}
 
 	public String BatchDelete(String oid) {
@@ -500,9 +554,9 @@ public class Content {
 	public String getArticleCount(String info, String ogid) {
 		return content.getArticleCount(info, ogid).toJSONString();
 	}
-	
-	//获取文章所属的栏目id
+
+	// 获取文章所属的栏目id
 	private JSONObject getOgid(String oid) {
-		return content.bind().eq("_id",new ObjectId(oid)).field("ogid").find(); 
+		return content.bind().eq("_id", new ObjectId(oid)).field("ogid").find();
 	}
 }
