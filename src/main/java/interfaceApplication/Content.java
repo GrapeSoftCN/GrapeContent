@@ -23,15 +23,13 @@ import time.TimeHelper;
 public class Content {
 	private ContentModel content = new ContentModel();
 	private HashMap<String, Object> defmap = new HashMap<>();
-	private static session session;
+	private session session;
 	private JSONObject UserInfo = new JSONObject();
 	private String sid = null;
 
-	static {
-		session = new session();
-	}
 
 	public Content() {
+		session = new session();
 		sid = (String) execRequest.getChannelValue("sid");
 		if (sid != null) {
 			UserInfo = session.getSession(sid);
@@ -157,8 +155,9 @@ public class Content {
 	public String EditArticle(String oid, String contents) {
 		int code = 99;
 		JSONObject infos = JSONHelper.string2json(contents);
-		if (UserInfo != null && UserInfo.size() != 0) {
-			String wbid = UserInfo.get("currentWeb").toString();
+//		if (UserInfo != null && UserInfo.size() != 0) {
+//			String wbid = UserInfo.get("currentWeb").toString();
+		String wbid = "594335af1a4769cbf5d04180";
 			if (infos != null) {
 				try {
 					String value = infos.get("content").toString();
@@ -180,7 +179,7 @@ public class Content {
 				}
 			}
 			code = content.UpdateArticle(wbid,oid, infos);
-		}
+//		}
 		return content.resultMessage(code, "文章更新成功");
 	}
 
@@ -237,13 +236,10 @@ public class Content {
 	 * 
 	 * @return
 	 */
-	/*public String findArticle(String oid) {
-		JSONObject object = content.select(oid);
-		return content.resultMessage(object);
-	}*/
 	public String findArticle(String oid) {
-		JSONObject object = content.find(oid);
-		return content.resultMessage(object);
+//		JSONObject object = content.find(oid);
+//		return content.resultMessage(object);
+		return content.find(oid);
 	}
 
 	/**
@@ -331,8 +327,8 @@ public class Content {
 		if (UserInfo != null && UserInfo.size() != 0) {
 			wbid = UserInfo.get("currentWeb").toString();
 		}
-		JSONObject object = content.page(wbid,idx, pageSize, JSONHelper.string2json(contents));
-		return content.resultMessage(object);
+		String	tips = content.page(wbid,idx, pageSize, JSONHelper.string2json(contents));
+		return tips;
 	}
 
 	public String PageBack(int idx, int pageSize) {

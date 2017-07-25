@@ -25,21 +25,15 @@ import rpc.execRequest;
 import string.StringHelper;
 
 public class ContentGroupModel {
-	private static formHelper _form;
-	private static userDBHelper dbcontent;
+	private formHelper _form;
+	private userDBHelper dbcontent;
 	private String appid = String.valueOf(appsProxy.appid());
 	private JSONObject _obj = new JSONObject();
-	// private static session session;
-	// private JSONObject UserInfo = new JSONObject();
 	private String sid = "";
 
-	static {
-		// session = new session();
+	public ContentGroupModel() {
 		dbcontent = new userDBHelper("objectGroup", (String) execRequest.getChannelValue("sid"));
 		_form = dbcontent.getChecker();
-	}
-
-	public ContentGroupModel() {
 		sid = (String) execRequest.getChannelValue("sid");
 		// if (sid != null) {
 		// UserInfo = session.getSession(sid);
@@ -80,6 +74,10 @@ public class ContentGroupModel {
 	 * 
 	 */
 	public String AddGroup(JSONObject groupinfo) {
+		int role = getRoleSign();
+		if (role == 6) {
+			return resultMessage(4);
+		}
 		JSONObject object = null;
 		try {
 			if (groupinfo == null) {
@@ -109,6 +107,10 @@ public class ContentGroupModel {
 	}
 
 	public int UpdateGroup(String ogid, JSONObject groupinfo) {
+		int role = getRoleSign();
+		if (role == 6) {
+			return 4;
+		}
 		int i = 99;
 		try {
 			if (groupinfo.containsKey("name")) {
@@ -126,6 +128,10 @@ public class ContentGroupModel {
 	}
 
 	public int DeleteGroup(String ogid) {
+		int role = getRoleSign();
+		if (role == 6) {
+			return 4;
+		}
 		return bind().eq("_id", new ObjectId(ogid)).delete() != null ? 0 : 99;
 	}
 
@@ -205,6 +211,7 @@ public class ContentGroupModel {
 			} else {
 				db.eq("wbid", wbid).mask("r,u,d");
 			}
+			
 			array = db.dirty().asc("sort").page(idx, pageSize);
 			object = new JSONObject();
 			object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
@@ -247,6 +254,7 @@ public class ContentGroupModel {
 				} else {
 					db.eq("wbid", wbid);
 				}
+				
 				array = db.dirty().asc("sort").page(idx, pageSize);
 				object.put("totalSize", (int) Math.ceil((double) db.count() / pageSize));
 			} else {
@@ -266,6 +274,10 @@ public class ContentGroupModel {
 
 	@SuppressWarnings("unchecked")
 	public int setfatherid(String ogid, int fatherid) {
+		int role = getRoleSign();
+		if (role == 6) {
+			return 4;
+		}
 		int i = 99;
 		JSONObject object = null;
 		try {
@@ -283,6 +295,10 @@ public class ContentGroupModel {
 
 	@SuppressWarnings("unchecked")
 	public int setsort(String ogid, int num) {
+		int role = getRoleSign();
+		if (role == 6) {
+			return 4;
+		}
 		int i = 99;
 		JSONObject object = null;
 		try {
@@ -300,6 +316,10 @@ public class ContentGroupModel {
 
 	@SuppressWarnings("unchecked")
 	public int setTempId(String ogid, String tempid) {
+		int role = getRoleSign();
+		if (role == 6) {
+			return 4;
+		}
 		int i = 99;
 		JSONObject object = null;
 		try {
@@ -317,6 +337,10 @@ public class ContentGroupModel {
 
 	@SuppressWarnings("unchecked")
 	public int setslevel(String ogid, int slevel) {
+		int role = getRoleSign();
+		if (role == 6) {
+			return 4;
+		}
 		int i = 99;
 		JSONObject object = null;
 		try {
@@ -333,6 +357,10 @@ public class ContentGroupModel {
 	}
 
 	public int delete(String[] arr) {
+		int role = getRoleSign();
+		if (role == 6) {
+			return 4;
+		}
 		int ir = 99;
 		try {
 			bind().or();
@@ -348,7 +376,6 @@ public class ContentGroupModel {
 	}
 
 	public boolean check_name(String name) {
-		nlogger.logout(name.length());
 		return (name.length() > 0 && name.length() <= 300);
 	}
 
@@ -622,8 +649,11 @@ public class ContentGroupModel {
 				if (roleplv >= 8000 && roleplv < 10000) {
 					roleSign = 4; // 监督管理员
 				}
-				if (roleplv >= 10000) {
+				if (roleplv >= 10000 && roleplv < 12000) {
 					roleSign = 5; // 总管理员
+				}
+				if (roleplv >= 12000) {
+					roleSign = 6; // 总管理员
 				}
 			} catch (Exception e) {
 				nlogger.logout(e);
@@ -658,7 +688,9 @@ public class ContentGroupModel {
 		}
 		return host;
 	}
-
+	public String resultMessage(int num) {
+		return resultMessage(num, "");
+	}
 	@SuppressWarnings("unchecked")
 	public String resultMessage(JSONObject object) {
 		if (object == null) {
@@ -693,13 +725,7 @@ public class ContentGroupModel {
 			message = "不允许重复添加";
 			break;
 		case 4:
-			message = "没有创建数据权限，请联系管理员进行权限调整";
-			break;
-		case 5:
-			message = "没有修改数据权限，请联系管理员进行权限调整";
-			break;
-		case 6:
-			message = "没有删除数据权限，请联系管理员进行权限调整";
+			message = "没有操作权限";
 			break;
 		default:
 			message = "其他异常";

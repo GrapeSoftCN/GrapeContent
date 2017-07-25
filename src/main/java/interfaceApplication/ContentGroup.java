@@ -18,7 +18,7 @@ import string.StringHelper;
 public class ContentGroup {
 	private ContentGroupModel group = new ContentGroupModel();
 	private HashMap<String, Object> defcol = new HashMap<>();
-	private static session session = new session();
+	private session session = new session();
 	private JSONObject userInfo = null;
 
 	public ContentGroup() {
