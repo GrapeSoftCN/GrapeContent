@@ -9,6 +9,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import apps.appsProxy;
+import database.db;
 import json.JSONHelper;
 import model.ContentModel;
 import nlogger.nlogger;
@@ -26,7 +27,6 @@ public class Content {
 	private session session;
 	private JSONObject UserInfo = new JSONObject();
 	private String sid = null;
-
 
 	public Content() {
 		session = new session();
@@ -60,8 +60,7 @@ public class Content {
 		defmap.put("d", 3000);
 		defmap.put("time", TimeHelper.nowMillis());
 		defmap.put("reason", ""); // 文章未通过审核，填写理由，【未通过审核，该项为必填项】
-		defmap.put("reasonRead", TimeHelper.nowMillis()); // 未通过审核
-															// 理由是否已读，0：未读；1：已读
+		defmap.put("reasonRead", 0); // 未通过审核,理由是否已读，0：未读；1：已读
 	}
 
 	private String getImageUri(String imageURL) {
@@ -155,31 +154,31 @@ public class Content {
 	public String EditArticle(String oid, String contents) {
 		int code = 99;
 		JSONObject infos = JSONHelper.string2json(contents);
-//		if (UserInfo != null && UserInfo.size() != 0) {
-//			String wbid = UserInfo.get("currentWeb").toString();
+		// if (UserInfo != null && UserInfo.size() != 0) {
+		// String wbid = UserInfo.get("currentWeb").toString();
 		String wbid = "594335af1a4769cbf5d04180";
-			if (infos != null) {
-				try {
-					String value = infos.get("content").toString();
-					value = codec.DecodeHtmlTag(value);
-					value = codec.decodebase64(value);
-					infos.escapeHtmlPut("content", value);
-					if (infos.containsKey("image")) {
-						String image = infos.get("image").toString();
-						image = getImageUri(codec.DecodeHtmlTag(image));
-						if (image != null) {
-							infos.put("image", image);
-						}
+		if (infos != null) {
+			try {
+				String value = infos.get("content").toString();
+				value = codec.DecodeHtmlTag(value);
+				value = codec.decodebase64(value);
+				infos.escapeHtmlPut("content", value);
+				if (infos.containsKey("image")) {
+					String image = infos.get("image").toString();
+					image = getImageUri(codec.DecodeHtmlTag(image));
+					if (image != null) {
+						infos.put("image", image);
 					}
-					if (infos.containsKey("time")) {
-						infos.put("time", Long.parseLong(infos.getString("time")));
-					}
-				} catch (Exception e) {
-					nlogger.logout(e);
 				}
+				if (infos.containsKey("time")) {
+					infos.put("time", Long.parseLong(infos.getString("time")));
+				}
+			} catch (Exception e) {
+				nlogger.logout(e);
 			}
-			code = content.UpdateArticle(wbid,oid, infos);
-//		}
+		}
+		code = content.UpdateArticle(wbid, oid, infos);
+		// }
 		return content.resultMessage(code, "文章更新成功");
 	}
 
@@ -192,9 +191,9 @@ public class Content {
 	 */
 	public String DeleteArticle(String oid) {
 		int code = 99;
-		if (UserInfo!=null|| UserInfo.size()!=0) {
+		if (UserInfo != null || UserInfo.size() != 0) {
 			String wbid = UserInfo.get("currentWeb").toString();
-			code = content.DeleteArticle(wbid,oid);
+			code = content.DeleteArticle(wbid, oid);
 		}
 		return content.resultMessage(code, "文章删除成功");
 	}
@@ -219,7 +218,8 @@ public class Content {
 
 	/**
 	 * 获取最新公开的指定数量的信息
-	 * @project	GrapeContent
+	 * 
+	 * @project GrapeContent
 	 * @package interfaceApplication
 	 * @file Content.java
 	 * 
@@ -237,9 +237,87 @@ public class Content {
 	 * @return
 	 */
 	public String findArticle(String oid) {
-//		JSONObject object = content.find(oid);
-//		return content.resultMessage(object);
 		return content.find(oid);
+	}
+
+	// 增加栏目点击次数
+	public String AddClick(String oid) {
+		int code = 99;
+		String temp;
+		JSONObject tempObj;
+		String id; // 栏目id[包含本级栏目及上级栏目id]
+		JSONObject obj = getOgid(oid);
+		String message = content.resultMessage(99);
+		if (obj != null && obj.size() != 0) {
+			id = getColumnId(obj);
+			// 新增栏目点击次数
+			String column = AddColumnClick(id);
+			tempObj = JSONObject.toJSON(column);
+			if (tempObj != null && tempObj.size() != 0) {
+				temp = appsProxy
+						.proxyCall(content.getHost(0),
+								appsProxy.appid() + "/15/ContentGroup/GroupEdits/" + id + "/" + column, null, null)
+						.toString();
+				tempObj = JSONObject.toJSON(temp);
+				if (tempObj != null && tempObj.size() != 0) {
+					code = tempObj.getInt("errorcode");
+				}
+				message = content.resultMessage(code, "新增次数成功");
+			}
+		}
+		return message;
+
+	}
+
+	// 获取栏目id[包含本级栏目及上级栏目id]
+	private String getColumnId(JSONObject obj) {
+		String ogid;
+		JSONArray array;
+		JSONObject object;
+		String id = "";
+		int l;
+		ogid = obj.getString("ogid");
+		ogid = appsProxy
+				.proxyCall(content.getHost(0), appsProxy.appid() + "/15/ContentGroup/getPrevCol/" + ogid, null, null)
+				.toString();
+		array = JSONArray.toJSONArray(ogid);
+		if (array != null && array.size() != 0) {
+			l = array.size();
+			for (int i = 0; i < l; i++) {
+				object = (JSONObject) array.get(i);
+				id = object.getString("_id") + ",";
+			}
+		}
+		if (!id.equals("") && id.length() > 0) {
+			id = StringHelper.fixString(id, ',');
+		}
+		return id;
+	}
+
+	// 新增点击次数
+	private String AddColumnClick(String id) {
+		JSONObject tempObject = new JSONObject();
+		String[] ids = id.split(",");
+		String tempCount;
+		long clickcount;
+		String temp = appsProxy
+				.proxyCall(content.getHost(0), appsProxy.appid() + "/15/ContentGroup/getClickCount/" + id, null, null)
+				.toString();
+		// 获取栏目点击次数
+		JSONObject column = JSONObject.toJSON(temp);
+		if (column != null && column.size() != 0) {
+			for (String string : ids) {
+				tempCount = String.valueOf(column.get("clickcount"));
+				if (tempCount.contains("$numberLong")) {
+					tempObject = JSONObject.toJSON(tempCount);
+					tempCount = (tempObject != null && tempObject.size() != 0) ? tempObject.getString("$numberLong")
+							: "0";
+				}
+				clickcount = Long.parseLong(tempCount) + 1;
+				column.put(string, clickcount);
+			}
+		}
+		return column.toJSONString();
 	}
 
 	/**
@@ -275,15 +353,16 @@ public class Content {
 	 * @param jsonstring
 	 * @return
 	 */
-	public String SearchArticle(String wbid,int ids,int pageSize,String condString) {
-		JSONObject object = content.search(wbid,ids,pageSize,condString);
+	public String SearchArticle(String wbid, int ids, int pageSize, String condString) {
+		JSONObject object = content.search(wbid, ids, pageSize, condString);
 		return content.resultMessage(object);
 	}
 
-	/*public String SearchArticles(String wbid,String condString, int no) {
-		JSONArray array = content.search(wbid,JSONHelper.string2json(condString), no);
-		return content.resultMessage(array);
-	}*/
+	/*
+	 * public String SearchArticles(String wbid,String condString, int no) {
+	 * JSONArray array = content.search(wbid,JSONHelper.string2json(condString),
+	 * no); return content.resultMessage(array); }
+	 */
 
 	/*----------------后台搜索-----------------*/
 	/**
@@ -292,11 +371,11 @@ public class Content {
 	 * @param jsonstring
 	 * @return
 	 */
-	public String SearchArticleBack(int ids,int pageSize,String condString) {
+	public String SearchArticleBack(int ids, int pageSize, String condString) {
 		JSONObject object = null;
-		if (UserInfo!=null|| UserInfo.size()!=0) {
+		if (UserInfo != null || UserInfo.size() != 0) {
 			String wbid = UserInfo.get("currentWeb").toString();
-			object = content.searchBack(wbid,ids,pageSize,condString);
+			object = content.searchBack(wbid, ids, pageSize, condString);
 		}
 		return content.resultMessage(object);
 	}
@@ -310,11 +389,11 @@ public class Content {
 	 *            每页显示量
 	 * @return
 	 */
-	public String Page(String wbid,int idx, int pageSize) {
+	public String Page(String wbid, int idx, int pageSize) {
 		if (UserInfo != null && UserInfo.size() != 0) {
 			wbid = UserInfo.get("currentWeb").toString();
 		}
-		JSONObject object = content.page(wbid,idx, pageSize);
+		JSONObject object = content.page(wbid, idx, pageSize);
 		return content.resultMessage(object);
 	}
 
@@ -323,11 +402,11 @@ public class Content {
 		return content.resultMessage(object);
 	}
 
-	public String PageBy(String wbid,int idx, int pageSize, String contents) {
+	public String PageBy(String wbid, int idx, int pageSize, String contents) {
 		if (UserInfo != null && UserInfo.size() != 0) {
 			wbid = UserInfo.get("currentWeb").toString();
 		}
-		String	tips = content.page(wbid,idx, pageSize, JSONHelper.string2json(contents));
+		String tips = content.page(wbid, idx, pageSize, JSONHelper.string2json(contents));
 		return tips;
 	}
 
@@ -335,30 +414,149 @@ public class Content {
 		return content.resultMessage(content.pageBack(idx, pageSize));
 	}
 
-	public String PageByBack(int idx, int pageSize, String contents) {
+	public String PageByBack1(int idx, int pageSize, String contents) {
 		JSONObject object = content.pageBack(idx, pageSize, JSONHelper.string2json(contents));
 		return content.resultMessage(object);
 	}
 
-	/**
-	 * 根据内容组id显示文章
-	 * 
-	 * @param ogid
-	 * @return
-	 */
-	public String ShowByGroupId(String wbid,String ogid) {
-		return content.resultMessage(content.findByGroupID(wbid,ogid));
+	public String PageByBack(int idx, int pageSize, String contents) {
+		JSONArray condArray = JSONArray.toJSONArray(contents);
+		JSONArray tempArray = getTemplate(condArray);
+		JSONArray array = new JSONArray();
+		long total = 0, totalSize = 0;
+		int roleSign = content.getRole();
+		db db = content.bind();
+		if (condArray != null && condArray.size() != 0) {
+			// 获取角色权限
+			if (roleSign == 3) {
+				db.eq("wbid", (String) UserInfo.get("currentWeb"));
+			} else if (roleSign == 2 || roleSign == 1 || roleSign == 0) {
+				db.eq("slevel", 0);
+			}
+			db.where(condArray);
+			array = db.dirty().desc("sort").desc("time").page(idx, pageSize);
+			total = db.count();
+			db.clear();
+			totalSize = (int) Math.ceil((double) total / pageSize);
+			array = setTemplate(array, tempArray);
+		}
+		return PageShow(content.dencode(array), total, totalSize, idx, pageSize);
 	}
 
-	/*----------前台页面幻灯片显示-------------*/
+	/***
+	 * 文章设置模版名称
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param array
+	 *            文章内容信息
+	 * @param tempObj
+	 *            模版名称信息
+	 * @return
+	 *
+	 */
+	private JSONArray setTemplate(JSONArray array, JSONArray tempArray) {
+		JSONObject obj, tempObj = new JSONObject();
+		String value, TemplateContent, Templatelist, tid;
+		if (array==null || array.size()==0) {
+			return new JSONArray();
+		}
+		if (tempArray != null && tempArray.size() != 0) {
+			int l = tempArray.size();
+			for (int i = 0; i < l; i++) {
+				obj = (JSONObject) tempArray.get(i);
+				if (obj != null && obj.size() != 0) {
+					TemplateContent = obj.getString("TemplateContent");
+					Templatelist = obj.getString("TemplateList");
+					tid = obj.getString("_id");
+					tempObj.put(tid, TemplateContent + "," + Templatelist);
+				}
+			}
+			JSONObject object = new JSONObject();
+			String[] temp;
+			for (int i = 0; i < array.size(); i++) {
+				object = (JSONObject) array.get(i);
+				value = object.getString("ogid");
+				temp = tempObj.getString(value).split(",");
+				object.put("TemplateContent", temp[0]);
+				object.put("Templatelist", temp[1]);
+				array.set(i, object);
+			}
+		}
+		return array;
+	}
+
+	/**
+	 * 获取栏目模版
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param condArray
+	 * @return
+	 *
+	 */
+	private JSONArray getTemplate(JSONArray condArray) {
+		String ogid = "";
+		JSONObject object = null;
+		JSONArray array = new JSONArray();
+		if (condArray != null && condArray.size() != 0) {
+			int l = condArray.size();
+			String value, column;
+			for (int i = 0; i < l; i++) {
+				object = (JSONObject) condArray.get(i);
+				if (object != null && object.size() != 0) {
+					value = object.getString("field");
+					if (value.equals("ogid")) {
+						value = object.getString("value");
+						ogid += value + ",";
+						// column = appsProxy
+						// .proxyCall(content.getHost(0),
+						// appsProxy.appid() + "/15/ContentGroup/getGroupByIds/"
+						// + ogid, null, "")
+						// .toString();
+						// object = JSONHelper.string2json(column);
+						// array = JSONArray.toJSONArray(column);
+					}
+				}
+			}
+			if (!ogid.equals("") && ogid.length() > 0) {
+				ogid = StringHelper.fixString(ogid, ',');
+				column = appsProxy.proxyCall(content.getHost(0),
+						appsProxy.appid() + "/15/ContentGroup/getGroupByIds/" + ogid, null, "").toString();
+				// object = JSONHelper.string2json(column);
+				array = JSONArray.toJSONArray(column);
+			}
+			// if (object == null || object.size() == 0) {
+			// object.put("TemplateContent", "");
+			// object.put("TemplateList", "");
+			// }
+		}
+		return array;
+	}
+
 	/**
 	 * 根据内容组id显示文章
 	 * 
 	 * @param ogid
 	 * @return
 	 */
-	public String ShowPicByGroupId(String wbid,String ogid) {
-		return content.resultMessage(content.findPicByGroupID(wbid,ogid));
+	public String ShowByGroupId(String wbid, String ogid) {
+		return content.resultMessage(content.findByGroupID(wbid, ogid));
+	}
+
+	/*----------前台页面图片显示-------------*/
+	/**
+	 * 根据内容组id显示文章
+	 * 
+	 * @param ogid
+	 * @return
+	 */
+	public String ShowPicByGroupId(String wbid, String ogid) {
+		return content.resultMessage(content.findPicByGroupID(wbid, ogid));
 	}
 
 	/**
@@ -417,9 +615,9 @@ public class Content {
 	 */
 	public String DeleteByOgid(String oid, String ogid) {
 		int code = 99;
-		if (UserInfo!=null|| UserInfo.size()!=0) {
+		if (UserInfo != null || UserInfo.size() != 0) {
 			String wbid = UserInfo.get("currentWeb").toString();
-			code = content.deleteByOgID(wbid,oid,ogid);
+			code = content.deleteByOgID(wbid, oid, ogid);
 		}
 		return content.resultMessage(code, "该栏目下文章删除成功");
 	}
@@ -439,27 +637,27 @@ public class Content {
 
 	public String SetTempId(String oid, String tempid) {
 		int code = 99;
-		if (UserInfo!=null|| UserInfo.size()!=0) {
+		if (UserInfo != null || UserInfo.size() != 0) {
 			String wbid = UserInfo.get("currentWeb").toString();
-			code = content.setTempId(wbid,oid,tempid);
+			code = content.setTempId(wbid, oid, tempid);
 		}
 		return content.resultMessage(code, "设置模版成功");
 	}
 
 	public String Setfatherid(String oid, String fatherid) {
 		int code = 99;
-		if (UserInfo!=null|| UserInfo.size()!=0) {
+		if (UserInfo != null || UserInfo.size() != 0) {
 			String wbid = UserInfo.get("currentWeb").toString();
-			code = content.setfatherid(wbid,oid,fatherid);
+			code = content.setfatherid(wbid, oid, fatherid);
 		}
 		return content.resultMessage(code, "设置模版成功");
 	}
 
 	public String Setslevel(String oid, String slevel) {
 		int code = 99;
-		if (UserInfo!=null|| UserInfo.size()!=0) {
+		if (UserInfo != null || UserInfo.size() != 0) {
 			String wbid = UserInfo.get("currentWeb").toString();
-			code = content.setslevel(wbid,oid,slevel);
+			code = content.setslevel(wbid, oid, slevel);
 		}
 		return content.resultMessage(code, "设置密级成功");
 	}
@@ -467,9 +665,9 @@ public class Content {
 	// 审核
 	public String Review(String oid, String managerid, String state) {
 		int code = 99;
-		if (UserInfo!=null|| UserInfo.size()!=0) {
+		if (UserInfo != null || UserInfo.size() != 0) {
 			String wbid = UserInfo.get("currentWeb").toString();
-			code = content.review(wbid,oid, managerid, state);
+			code = content.review(wbid, oid, managerid, state);
 		}
 		return content.resultMessage(code, "审核文章操作成功");
 	}
@@ -553,6 +751,33 @@ public class Content {
 
 	// 获取文章所属的栏目id
 	private JSONObject getOgid(String oid) {
-		return content.bind().eq("_id", new ObjectId(oid)).field("ogid").find();
+		return content.bind().eq("_id", new ObjectId(oid)).field("ogid,clickcount").find();
+	}
+
+	// 热点关注部分按点击率倒序显示文章列表【重点公开内容，按点击率排序的公开内容】
+	public String getHotArticle(String condString, int idx, int PageSize) {
+		JSONArray condarray = JSONArray.toJSONArray(condString);
+		JSONArray array = new JSONArray();
+		long total = 0, totalSize = 0;
+		db db = content.bind();
+		if (condarray != null && condarray.size() != 0) {
+			db.desc("clickcount").desc("_id").eq("slevel", 0).where(condarray).field("_id,mainName,ogid,time");
+			array = db.dirty().page(idx, PageSize);
+			total = db.count();
+			db.clear();
+			totalSize = (int) Math.ceil((double) total / PageSize);
+		}
+		return PageShow(array, total, totalSize, idx, PageSize);
+	}
+
+	// 分页显示部分
+	private String PageShow(JSONArray array, long total, long totalSize, int current, int PageSize) {
+		JSONObject object = new JSONObject();
+		object.put("data", array);
+		object.put("total", total);
+		object.put("totalSize", totalSize);
+		object.put("currentPage", current);
+		object.put("PageSize", PageSize);
+		return content.resultMessage(object);
 	}
 }

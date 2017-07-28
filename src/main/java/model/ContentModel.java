@@ -27,7 +27,6 @@ import check.formHelper.formdef;
 import database.DBHelper;
 import database.db;
 import database.userDBHelper;
-import io.netty.handler.codec.spdy.DefaultSpdySettingsFrame;
 import json.JSONHelper;
 import nlogger.nlogger;
 import rpc.execRequest;
@@ -512,7 +511,7 @@ public class ContentModel {
 			}
 		}
 		object.put("total", db.dirty().count());
-		object.put("totalSize", (int) Math.ceil((double) db.count() / pageSize));
+		object.put("totalSize", (int) Math.ceil((double) db.dirty().count() / pageSize));
 		db.clear();
 		object.put("currentPage", idx);
 		object.put("pageSize", pageSize);
@@ -736,9 +735,9 @@ public class ContentModel {
 		return obj;
 	}
 
-	private JSONArray dencode(JSONArray array) {
+	public JSONArray dencode(JSONArray array) {
 		if (array == null || array.size() == 0) {
-			return null;
+			return new JSONArray();
 		}
 		for (int i = 0; i < array.size(); i++) {
 			JSONObject object = (JSONObject) array.get(i);
@@ -792,8 +791,79 @@ public class ContentModel {
 				obj.put("nextid", ((JSONObject) nextobj.get("_id")).getString("$oid"));
 				obj.put("nextname", nextobj.get("mainName"));
 			}
+			// 点击次数+1
+			AddArticleClick(obj);
+			// 增加访问用户编号，即reader字段修改
+			AddReader(obj);
 		}
 		return resultMessage(getImg(dencode(obj)));
+	}
+
+	/**
+	 * 新增文章点击次数
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param oid
+	 * @return
+	 *
+	 */
+	private String AddArticleClick(JSONObject object) {
+		int code = 99;
+		JSONObject obj;
+		String id;
+		String clickcount;
+		long clicktimes;
+		if (object != null && object.size() != 0) {
+			obj = (JSONObject) object.get("_id");
+			id = obj.getString("$oid");
+			if (!object.containsKey("clickcount")) {
+				clickcount = "{\"clickcount\":1}";
+			} else {
+				clickcount = object.get("clickcount").toString();
+				if (!clickcount.equals("") && clickcount.contains("$numberLong")) {
+					obj = JSONObject.toJSON(clickcount);
+					clickcount = (obj != null && obj.size() != 0) ? obj.getString("$numberLong") : "0";
+				}
+				clicktimes = Long.parseLong(clickcount) + 1;
+				clickcount = "{\"clickcount\"" + clicktimes + "}";
+			}
+			code = bind().eq("_id", id).data(clickcount).update() != null ? 0 : 99;
+		}
+		return resultMessage(code, "ok");
+	}
+
+	private String AddReader(JSONObject object) {
+		String uid;
+		int code = 99;
+		JSONObject obj;
+		String id;
+		String users;
+		if (UserInfo != null && UserInfo.size() != 0) {
+			obj = (JSONObject) UserInfo.get("_id");
+			uid = obj.getString("$oid"); // 访问者id
+			if (object != null && object.size() != 0) {
+				obj = (JSONObject) object.get("_id");
+				id = obj.getString("$oid"); // 文章id
+				if (object.containsKey("reader")) {
+					users = "{\"reader\":\"\"}";
+				} else {
+					users = object.get("reader").toString();
+					if (!users.contains(uid)) {
+						if (!users.equals("")) {
+							users += users + "," + uid;
+						}else{
+							users = uid;
+						}
+						users = "{\"reader\"" +"\""+ users + "\"}";
+						code = bind().eq("_id", id).data(users).update() != null ? 0 : 99;
+					}
+				}
+			}
+		}
+		return resultMessage(code, "ok");
 	}
 
 	/**
@@ -1614,7 +1684,7 @@ public class ContentModel {
 	 *
 	 */
 
-	private int getRole() {
+	public int getRole() {
 		int roleSign = 0; // 游客
 		if (sid != null) {
 			try {

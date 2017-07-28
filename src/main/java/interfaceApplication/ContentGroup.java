@@ -4,10 +4,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import apps.appsProxy;
+import database.db;
 import json.JSONHelper;
 import model.ContentGroupModel;
 import nlogger.nlogger;
@@ -172,37 +174,26 @@ public class ContentGroup {
 	}
 
 	// 获取当前文章所在栏目位置
-	/*public String getPrevCol(String ogid) {
-		List<JSONObject> list = new ArrayList<>();
-		JSONArray array = null;
-		try {
-			array = new JSONArray();
-			list = getPrevCol(list, ogid);
-			Collections.reverse(list); // list倒序排列
-			array = JSONHelper.string2array(list.toString());
-		} catch (Exception e) {
-			nlogger.logout(e);
-			array = null;
-		}
-		return group.resultMessage(array);
-	}*/
+	/*
+	 * public String getPrevCol(String ogid) { List<JSONObject> list = new
+	 * ArrayList<>(); JSONArray array = null; try { array = new JSONArray();
+	 * list = getPrevCol(list, ogid); Collections.reverse(list); // list倒序排列
+	 * array = JSONHelper.string2array(list.toString()); } catch (Exception e) {
+	 * nlogger.logout(e); array = null; } return group.resultMessage(array); }
+	 */
 	public String getPrevCol(String ogid) {
 		JSONArray array = group.getPrev(ogid);
 		return group.resultMessage(array);
 	}
 	// 获得上级栏目id，name，fatherid
-	/*private List<JSONObject> getPrevCol(List<JSONObject> list, String ogid) {
-		JSONObject rs = null;
-		String fatherid;
-		if (!ogid.contains("$numberLong") && !("0").equals(ogid)) {
-			rs = new JSONObject();
-			rs = group.findWeb(ogid);
-			list = group.getName(list, rs);
-			fatherid = (rs != null && rs.size() != 0) ? rs.getString("fatherid") : "0";
-			list = getPrevCol(list, fatherid);
-		}
-		return list;
-	}*/
+	/*
+	 * private List<JSONObject> getPrevCol(List<JSONObject> list, String ogid) {
+	 * JSONObject rs = null; String fatherid; if (!ogid.contains("$numberLong")
+	 * && !("0").equals(ogid)) { rs = new JSONObject(); rs =
+	 * group.findWeb(ogid); list = group.getName(list, rs); fatherid = (rs !=
+	 * null && rs.size() != 0) ? rs.getString("fatherid") : "0"; list =
+	 * getPrevCol(list, fatherid); } return list; }
+	 */
 
 	// 设置栏目管理员 userid为用户表 _id
 	public String setManage(String ogid, String userid) {
@@ -226,8 +217,8 @@ public class ContentGroup {
 	}
 
 	public String getGroupByIds(String ogid) {
-		JSONObject object = group.find(ogid);
-		return object != null ? object.toString() : "";
+		JSONArray array = group.finds(ogid);
+		return array != null ? array.toString() : "";
 	}
 
 	// 获取该栏目下，栏目管理员
@@ -240,5 +231,61 @@ public class ContentGroup {
 	public String getColumnId(String condString) {
 		JSONArray array = group.findColumn(condString);
 		return (array != null && array.size() != 0) ? array.toString() : "";
+	}
+
+	// 根据栏目id获取该栏目的点击次数
+	@SuppressWarnings("unchecked")
+	public String getClickCount(String ogid) {
+		String[] value = ogid.split(",");
+		db db = group.getdb().or();
+		for (String tempid : value) {
+			if (!tempid.equals("")) {
+				db.eq("_id", new ObjectId(tempid));
+			}
+		}
+		JSONArray array = db.field("_id,clickcount").select();
+		JSONObject object;
+		JSONObject objId;
+		JSONObject rObject = new JSONObject();
+		String clickCount;
+		String id;
+		if (array != null && array.size() != 0) {
+			for (Object object2 : array) {
+				object = (JSONObject) object2;
+				objId = (JSONObject) object.get("_id");
+				id = objId.getString("$oid");
+				clickCount = String.valueOf(object.get("clickcount"));
+				if (clickCount.contains("$numberLong")) {
+					objId = JSONObject.toJSON(clickCount);
+					clickCount = (objId != null && objId.size() != 0) ? objId.getString("$numberLong") : "0";
+				}
+				rObject.put(id, Long.parseLong(clickCount));
+			}
+		}
+		return rObject.toJSONString();
+	}
+
+	// 批量修改，不同的id，修改不同的数据
+	public String GroupEdits(String ogid, String info) {
+		int code = 0;
+		String message = group.resultMessage(99);
+		JSONObject tempObj = JSONObject.toJSON(info);
+		String dataInfo;
+		String[] value = ogid.split(",");
+		String id;
+		int l = value.length;
+		db db = group.getdb();
+		if (tempObj != null && tempObj.size() != 0) {
+			for (int i = 0; i < l; i++) {
+				id = value[i];
+				dataInfo = String.valueOf(tempObj.get(id));
+				dataInfo = "{\"clickcount\":" + Long.parseLong(dataInfo) + "}";
+				if (code == 0) {
+					code = db.eq("_id", new ObjectId(id)).data(dataInfo).update() != null ? 0 : 99;
+				}
+			}
+			message = group.resultMessage(code, "修改成功");
+		}
+		return message;
 	}
 }

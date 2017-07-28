@@ -44,6 +44,10 @@ public class ContentGroupModel {
 		return dbcontent.bind(appsProxy.appidString());
 	}
 
+	public db getdb() {
+		return bind();
+	}
+
 	private formHelper getForm() {
 		_form.putRule("name", formHelper.formdef.notNull);
 		_form.putRule("type", formHelper.formdef.notNull);
@@ -140,6 +144,34 @@ public class ContentGroupModel {
 		return object != null ? join(object) : null;
 	}
 
+	@SuppressWarnings("unchecked")
+	public JSONArray finds(String ogid) {
+		JSONArray array = null;
+		String[] value = ogid.split(",");
+		JSONObject object;
+		int l=0;
+		db db = bind().or();
+		try {
+			for (String string : value) {
+				db.eq("_id", string);
+			}
+			array = db.field("_id,tempContent,tempList").select();
+			l = array.size();
+			String id;
+			for (int i = 0; i < l; i++) {
+				object = (JSONObject) array.get(i);
+				id = ((JSONObject) object.get("_id")).getString("$oid");
+				object.put("_id", id);
+				array.set(i, object);
+			}
+		} catch (Exception e) {
+			nlogger.logout(e);
+			array = null;
+		}
+//		JSONObject object = bind().eq("_id", new ObjectId(ogid)).find();
+		return (array!=null && array.size()!=0)?join(array):null;
+	}
+
 	public JSONObject findOwnid(String ogid) {
 		return bind().eq("_id", new ObjectId(ogid)).field("ownid").find();
 	}
@@ -211,7 +243,7 @@ public class ContentGroupModel {
 			} else {
 				db.eq("wbid", wbid).mask("r,u,d");
 			}
-			
+
 			array = db.dirty().asc("sort").page(idx, pageSize);
 			object = new JSONObject();
 			object.put("totalSize", (int) Math.ceil((double) bind().count() / pageSize));
@@ -254,7 +286,7 @@ public class ContentGroupModel {
 				} else {
 					db.eq("wbid", wbid);
 				}
-				
+
 				array = db.dirty().asc("sort").page(idx, pageSize);
 				object.put("totalSize", (int) Math.ceil((double) db.count() / pageSize));
 			} else {
@@ -454,14 +486,14 @@ public class ContentGroupModel {
 				content = object.getString("tempContent");
 				list = object.getString("tempList");
 				if (!content.equals("")) {
-					tid +=content+",";
+					tid += content + ",";
 				}
 				if (!list.equals("")) {
-					tid +=list+",";
+					tid += list + ",";
 				}
-				
+
 			}
-			if (!tid.equals("") &&tid.length() > 0) {
+			if (!tid.equals("") && tid.length() > 0) {
 				tid = StringHelper.fixString(tid, ',');
 				/*
 				 * tid,tid,tid,tid,tid,tid,tid,tid,tid, {"tid":"name"}
@@ -688,9 +720,11 @@ public class ContentGroupModel {
 		}
 		return host;
 	}
+
 	public String resultMessage(int num) {
 		return resultMessage(num, "");
 	}
+
 	@SuppressWarnings("unchecked")
 	public String resultMessage(JSONObject object) {
 		if (object == null) {
