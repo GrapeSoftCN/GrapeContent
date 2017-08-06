@@ -31,7 +31,7 @@ public class ContentGroup {
 		}
 		String ownid = (userInfo != null && userInfo.size() != 0) ? ((JSONObject) userInfo.get("_id")).getString("$oid")
 				: "";
-		defcol.put("ownid", ownid);
+		defcol.put("ownid", ownid); // 栏目管理员，默认为当前登录用户
 		defcol.put("fatherid", "0");
 		defcol.put("sort", 0);
 		defcol.put("isvisble", 0);
@@ -40,11 +40,15 @@ public class ContentGroup {
 		defcol.put("tempContent", "0");
 		defcol.put("tempList", "0");
 		defcol.put("contentType", "0"); // 该栏目下文章的类型
-		defcol.put("fixed", "0"); // 是否为固定栏目，即所有子网站都显示的栏目 0：非固定栏目；1：固定栏目
+		// defcol.put("fixed", "0"); // 是否为固定栏目，即所有子网站都显示的栏目 0：非固定栏目；1：固定栏目
 		defcol.put("u", 2000);
 		defcol.put("r", 1000);
 		defcol.put("d", 3000);
 		defcol.put("wbid", (userInfo != null && userInfo.size() != 0) ? userInfo.get("currentWeb") : "");
+		defcol.put("editor", ownid); // 栏目下文章编辑员,默认为当前登录用户
+		defcol.put("timediff", 86400000); // 更新时间周期
+		defcol.put("editCount", 1); // 栏目更新周期内需更新的文章总数
+		defcol.put("connColumn", "0"); // 关联的栏目id，默认为0，不关联任何栏目
 	}
 
 	// 新增
@@ -75,8 +79,7 @@ public class ContentGroup {
 				}
 				list.add(ogid);
 				String tips = appsProxy
-						.proxyCall(group.getHost(0),
-								appsProxy.appid() + "/15/Content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
+						.proxyCall("/GrapeContent/Content/SetGroupBatch/s:" + StringHelper.join(list), null, "")
 						.toString();
 				if (tips != null && !tips.equals("")) {
 					code = (long) JSONHelper.string2json(tips).get("errorcode");
@@ -101,6 +104,23 @@ public class ContentGroup {
 		return group.findByType(type, no);
 	}
 
+	/**
+	 * 查询支持超链接文章的栏目，即contentType为5
+	 * @project	GrapeContent
+	 * @package interfaceApplication
+	 * @file ContentGroup.java
+	 * 
+	 * @param type
+	 * @param no
+	 * @return
+	 *
+	 */
+	public String findByContentType(int idx,int pageSize) {
+		db db = group.getdb();
+		JSONArray array = db.eq("contentType", "5").field("_id,name").page(idx, pageSize);
+		return array.toString();
+	}
+
 	public String GroupFind(String groupinfo) {
 		return group.resultMessage(group.select(groupinfo));
 	}
@@ -116,7 +136,7 @@ public class ContentGroup {
 		if (userInfo != null && userInfo.size() != 0) {
 			wbid = userInfo.get("currentWeb").toString();
 		}
-		return group.page(wbid, idx, pageSize);
+		return group.pages(wbid, idx, pageSize, null);
 	}
 
 	// 条件分页
@@ -124,7 +144,7 @@ public class ContentGroup {
 		if (userInfo != null && userInfo.size() != 0) {
 			wbid = userInfo.get("currentWeb").toString();
 		}
-		return group.page(wbid, idx, pageSize, JSONHelper.string2json(GroupInfo));
+		return group.pages(wbid, idx, pageSize, GroupInfo);
 	}
 
 	/*-------------------后台------*/
@@ -133,7 +153,7 @@ public class ContentGroup {
 		String result = group.resultMessage(new JSONArray());
 		if (userInfo != null && userInfo.size() != 0) {
 			String wbid = userInfo.get("currentWeb").toString();
-			result = group.page(wbid, idx, pageSize);
+			result = group.pages(wbid, idx, pageSize, null);
 		}
 		return result;
 	}
@@ -143,7 +163,7 @@ public class ContentGroup {
 		String result = group.resultMessage(new JSONArray());
 		if (userInfo != null && userInfo.size() != 0) {
 			String wbid = userInfo.get("currentWeb").toString();
-			result = group.page(wbid, idx, pageSize, JSONHelper.string2json(GroupInfo));
+			result = group.pages(wbid, idx, pageSize, GroupInfo);
 		}
 		return result;
 	}
@@ -174,26 +194,10 @@ public class ContentGroup {
 	}
 
 	// 获取当前文章所在栏目位置
-	/*
-	 * public String getPrevCol(String ogid) { List<JSONObject> list = new
-	 * ArrayList<>(); JSONArray array = null; try { array = new JSONArray();
-	 * list = getPrevCol(list, ogid); Collections.reverse(list); // list倒序排列
-	 * array = JSONHelper.string2array(list.toString()); } catch (Exception e) {
-	 * nlogger.logout(e); array = null; } return group.resultMessage(array); }
-	 */
 	public String getPrevCol(String ogid) {
 		JSONArray array = group.getPrev(ogid);
 		return group.resultMessage(array);
 	}
-	// 获得上级栏目id，name，fatherid
-	/*
-	 * private List<JSONObject> getPrevCol(List<JSONObject> list, String ogid) {
-	 * JSONObject rs = null; String fatherid; if (!ogid.contains("$numberLong")
-	 * && !("0").equals(ogid)) { rs = new JSONObject(); rs =
-	 * group.findWeb(ogid); list = group.getName(list, rs); fatherid = (rs !=
-	 * null && rs.size() != 0) ? rs.getString("fatherid") : "0"; list =
-	 * getPrevCol(list, fatherid); } return list; }
-	 */
 
 	// 设置栏目管理员 userid为用户表 _id
 	public String setManage(String ogid, String userid) {
@@ -201,7 +205,7 @@ public class ContentGroup {
 	}
 
 	// 设置栏目编辑 userid为用户表 _id !!
-	public String setEditer(String ogid, String userid) {
+	public String setEditor(String ogid, String userid) {
 		return group.setColumManage(ogid, userid);
 	}
 
@@ -227,13 +231,65 @@ public class ContentGroup {
 		return object != null ? object.toString() : "";
 	}
 
-	// 根据用户id，网站id，获取栏目id,name
-	public String getColumnId(String condString) {
-		JSONArray array = group.findColumn(condString);
-		return (array != null && array.size() != 0) ? array.toString() : "";
+	/**
+	 * 获取栏目
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file ContentGroup.java
+	 * 
+	 * @param condString
+	 * @return
+	 *
+	 */
+	public String getColumns(int idx, int pageSize, String wbid) {
+		long totalSize = 0;
+		JSONArray array = null;
+		db db = group.getdb();
+		if (wbid != null && !wbid.equals("")) {
+			// 查询条件含有wbid，判断wbid是否为本站点或者本站点的下级站点
+			if (IsWeb(wbid)) {
+				db.eq("wbid", wbid);
+				array = db.dirty().page(idx, pageSize);
+				totalSize = db.pageMax(pageSize);
+				db.clear();
+			}
+		}
+		return group.pageShow(array, idx, pageSize, totalSize);
 	}
 
-	// 根据栏目id获取该栏目的点击次数
+	/**
+	 * 查询条件若含有wbid，判断wbid是否为本站点或者本站点的下级站点
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file ContentGroup.java
+	 * 
+	 * @param array
+	 * @return
+	 *
+	 */
+	private boolean IsWeb(String wbid) {
+		String currentWeb = (userInfo != null && userInfo.size() != 0) ? userInfo.getString("currentWeb") : "";
+		String web = "";
+		if (!currentWeb.equals("")) {
+			// 获取当前站点及当前站点的下级站点
+			web = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + currentWeb).toString();
+		}
+		return web.contains(wbid);
+	}
+
+	/**
+	 * 根据栏目id获取该栏目的点击次数
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file ContentGroup.java
+	 * 
+	 * @param ogid
+	 * @return
+	 *
+	 */
 	@SuppressWarnings("unchecked")
 	public String getClickCount(String ogid) {
 		String[] value = ogid.split(",");
@@ -265,7 +321,18 @@ public class ContentGroup {
 		return rObject.toJSONString();
 	}
 
-	// 批量修改，不同的id，修改不同的数据
+	/**
+	 * 批量修改，不同的id，修改不同的数据
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file ContentGroup.java
+	 * 
+	 * @param ogid
+	 * @param info
+	 * @return
+	 *
+	 */
 	public String GroupEdits(String ogid, String info) {
 		int code = 0;
 		String message = group.resultMessage(99);
@@ -287,5 +354,39 @@ public class ContentGroup {
 			message = group.resultMessage(code, "修改成功");
 		}
 		return message;
+	}
+
+	/**
+	 * 获取关联栏目id
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file ContentGroup.java
+	 * 
+	 * @param ogid
+	 *            当前栏目id
+	 * @return 当前栏目id和关联栏目id，格式为ogid,ogid,ogid
+	 *
+	 */
+	public String getConnColumns(String ogid) {
+		String column = "", columnId = "", id;
+		JSONArray array = null;
+		JSONObject object = group.find(ogid);
+		if (object != null && object.size() != 0) {
+			if (object.containsKey("connColumn")) {
+				column = object.getString("connColumn");
+				array = JSONArray.toJSONArray(column);
+				for (Object obj : array) {
+					object = (JSONObject) obj;
+					id = (object != null && object.size() != 0) ? object.getString("id") : "";
+					columnId += (!id.equals("") ? id : "") + ",";
+				}
+			}
+		}
+		if (!columnId.equals("")) {
+			columnId = StringHelper.fixString(columnId, ',');
+			ogid = ogid + "," + columnId;
+		}
+		return ogid;
 	}
 }
