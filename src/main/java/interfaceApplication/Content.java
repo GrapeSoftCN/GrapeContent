@@ -13,6 +13,7 @@ import database.DBHelper;
 import database.db;
 import json.JSONHelper;
 import model.ContentModel;
+import model.WsCount;
 import nlogger.nlogger;
 import security.codec;
 import session.session;
@@ -1245,6 +1246,7 @@ public class Content {
 		return content.resultMessage(code, "追加文档成功");
 	}
 
+	//统计
 	public String totalArticle(String wbid) {
 		return content.resultMessage(getGroup(wbid));
 	}
@@ -1329,14 +1331,11 @@ public class Content {
 		}
 		return count;
 	}
-
-//	private void total(String wbid) {
-//		String[] value;
-//		String tempwbid = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getChildrenWeb/" + wbid, null, null).toString();
-//		JSONArray array = getGroup(wbid);
-//		if (!tempwbid.equals("")) {
-//			value = tempwbid.split(",");
-//			
-//		}
-//	}
+	public String total(String rootID) {
+			JSONObject json = new JSONObject();
+//			JSONObject webInfo = JSONObject.toJSON((String)(String)execRequest._run("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID));
+			JSONObject webInfo = JSONObject.toJSON(appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID, null,null).toString());
+			json = new WsCount().getAllCount(json, rootID , webInfo.getString(rootID) , "");
+			return json.toJSONString();
+	}
 }
