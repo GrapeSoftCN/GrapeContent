@@ -40,15 +40,16 @@ public class ContentGroup {
 		defcol.put("tempContent", "0");
 		defcol.put("tempList", "0");
 		defcol.put("contentType", "0"); // 该栏目下文章的类型
-		// defcol.put("fixed", "0"); // 是否为固定栏目，即所有子网站都显示的栏目 0：非固定栏目；1：固定栏目
 		defcol.put("u", 2000);
 		defcol.put("r", 1000);
 		defcol.put("d", 3000);
 		defcol.put("wbid", (userInfo != null && userInfo.size() != 0) ? userInfo.get("currentWeb") : "");
 		defcol.put("editor", ownid); // 栏目下文章编辑员,默认为当前登录用户
 		defcol.put("timediff", 86400000); // 更新时间周期
+		defcol.put("clickCount", 0); // 栏目更新周期内需更新的文章总数
 		defcol.put("editCount", 1); // 栏目更新周期内需更新的文章总数
 		defcol.put("connColumn", "0"); // 关联的栏目id，默认为0，不关联任何栏目
+		defcol.put("isreview", 0);   //该栏目下文章是否需要审核，0：不需要审核，1：需要审核
 	}
 
 	// 新增
@@ -101,12 +102,17 @@ public class ContentGroup {
 	}
 
 	public String FindByType(String type, int no) {
-		return group.findByType(type, no);
+		String wbid = (userInfo != null && userInfo.size() != 0) ? userInfo.getString("currentWeb") : "";
+		return group.findByType(wbid, type, no);
 	}
-
+	public String FindByTypes(String type, int no) {
+		String wbid = (userInfo != null && userInfo.size() != 0) ? userInfo.getString("currentWeb") : "";
+		return group.findByTypes(wbid, type, no);
+	}
 	/**
 	 * 查询支持超链接文章的栏目，即contentType为5
-	 * @project	GrapeContent
+	 * 
+	 * @project GrapeContent
 	 * @package interfaceApplication
 	 * @file ContentGroup.java
 	 * 
@@ -115,7 +121,7 @@ public class ContentGroup {
 	 * @return
 	 *
 	 */
-	public String findByContentType(int idx,int pageSize) {
+	public String findByContentType(int idx, int pageSize) {
 		db db = group.getdb();
 		JSONArray array = db.eq("contentType", "5").field("_id,name").page(idx, pageSize);
 		return array.toString();
@@ -274,7 +280,9 @@ public class ContentGroup {
 		String web = "";
 		if (!currentWeb.equals("")) {
 			// 获取当前站点及当前站点的下级站点
-			web = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + currentWeb).toString();
+			web = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + currentWeb, null, null).toString();
+			// web = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" +
+			// currentWeb).toString();
 		}
 		return web.contains(wbid);
 	}
@@ -375,11 +383,13 @@ public class ContentGroup {
 		if (object != null && object.size() != 0) {
 			if (object.containsKey("connColumn")) {
 				column = object.getString("connColumn");
-				array = JSONArray.toJSONArray(column);
-				for (Object obj : array) {
-					object = (JSONObject) obj;
-					id = (object != null && object.size() != 0) ? object.getString("id") : "";
-					columnId += (!id.equals("") ? id : "") + ",";
+				if (!column.equals("0")) {
+					array = JSONArray.toJSONArray(column);
+					for (Object obj : array) {
+						object = (JSONObject) obj;
+						id = (object != null && object.size() != 0) ? object.getString("id") : "";
+						columnId += (!id.equals("") ? id : "") + ",";
+					}
 				}
 			}
 		}

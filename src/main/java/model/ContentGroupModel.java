@@ -1,5 +1,7 @@
 package model;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,12 +27,14 @@ import string.StringHelper;
 public class ContentGroupModel {
 	private formHelper _form;
 	private userDBHelper dbcontent;
+	// private DBHelper dbcontent;
 	private String appid = String.valueOf(appsProxy.appid());
 	private JSONObject _obj = new JSONObject();
 	private String sid = "";
 
 	public ContentGroupModel() {
 		dbcontent = new userDBHelper("objectGroup", (String) execRequest.getChannelValue("sid"));
+		// dbcontent = new userDBHelper("mongodb","objectGroup_test");
 		_form = dbcontent.getChecker();
 		sid = (String) execRequest.getChannelValue("sid");
 	}
@@ -61,9 +65,22 @@ public class ContentGroupModel {
 	}
 
 	// 根据类型查询栏目，指定数量
-	public String findByType(String type,int no) {
-		JSONArray array = bind().eq("contentType", type).limit(no).select();
+	public String findByType(String wbid, String type, int no) {
+		db db = bind();
+		if (wbid != null && !wbid.equals("")) {
+			db.eq("wbid", wbid);
+		}
+		JSONArray array = db.eq("contentType", type).limit(no).select();
 		return resultMessage(join(array));
+	}
+
+	public String findByTypes(String wbid, String type, int no) {
+		db db = bind();
+		if (wbid != null && !wbid.equals("")) {
+			db.eq("wbid", wbid);
+		}
+		JSONArray array = db.eq("contentType", type).field("_id,name").limit(no).select();
+		return resultMessage(array);
 	}
 
 	/**
@@ -396,6 +413,7 @@ public class ContentGroupModel {
 	@SuppressWarnings("unchecked")
 	private JSONArray join(JSONArray array) {
 		JSONObject object;
+		String content = "", list = "";
 		int l = array.size();
 		if (array == null || array.size() == 0) {
 			return array;
@@ -404,23 +422,21 @@ public class ContentGroupModel {
 			JSONObject tempTemplateObj = getTempInfo(array);
 			String tContentID = null;
 			String tListID = null;
-			if (tempTemplateObj != null) {
-				for (int i = 0; i < l; i++) {
-					object = (JSONObject) array.get(i);
+			for (int i = 0; i < l; i++) {
+				object = (JSONObject) array.get(i);
+				if (tempTemplateObj != null) {
 					tContentID = object.getString("tempContent");
 					if (tempTemplateObj.containsKey(tContentID)) {
-						object.put("TemplateContent", tempTemplateObj.getString(tContentID));
-					} else {
-						nlogger.logout("Template::Content:" + tContentID + " -Error");
-					}
+						content = tempTemplateObj.getString(tContentID);
+					} 
 					tListID = object.getString("tempList");
 					if (tempTemplateObj.containsKey(tListID)) {
-						object.put("TemplateList", tempTemplateObj.getString(tListID));
-					} else {
-						nlogger.logout("Template::List:" + tListID + " -Error");
-					}
-					array.set(i, object);
+						list = tempTemplateObj.getString(tListID);
+					} 
 				}
+				object.put("TemplateList", list);
+				object.put("TemplateContent", content);
+				array.set(i, object);
 			}
 		} catch (Exception e) {
 			nlogger.logout(e);
@@ -453,29 +469,37 @@ public class ContentGroupModel {
 	 *
 	 */
 	private JSONObject getTempInfo(JSONArray array) {
-		JSONObject object = new JSONObject();
+		JSONObject object = new JSONObject(), tempobj = null;
 		String content = null;
 		String list = null;
 		String tid = "";
 		String temp = "";
-		int l = array.size();
-		for (int i = 0; i < l; i++) {
-			object = (JSONObject) array.get(i);
-			content = object.getString("tempContent");
-			list = object.getString("tempList");
-			if (!content.equals("")) {
-				tid += content + ",";
+		if (array != null && array.size() != 0) {
+			int l = array.size();
+			for (int i = 0; i < l; i++) {
+				object = (JSONObject) array.get(i);
+				content = object.getString("tempContent");
+				list = object.getString("tempList");
+				if (!content.equals("") && !content.equals("0")) {
+					tid += content + ",";
+				}
+				if (!list.equals("") && !list.equals("0")) {
+					tid += list + ",";
+				}
 			}
-			if (!list.equals("")) {
-				tid += list + ",";
+			if (!tid.equals("") && tid.length() > 0) {
+				tid = StringHelper.fixString(tid, ',');
+				if (!tid.equals("")) {
+					temp = appsProxy.proxyCall("/GrapeTemplate/TemplateContext/TempFindByTids/s:" + tid, null, null)
+							.toString();
+					// temp =
+					// appsProxy.proxyCall("/GrapeTemplate/TemplateContext/TempFindByTids/s:"
+					// + tid).toString();
+					tempobj = JSONObject.toJSON(temp);
+				}
 			}
 		}
-		if (!tid.equals("") && tid.length() > 0) {
-			tid = StringHelper.fixString(tid, ',');
-			temp = appsProxy.proxyCall("/GrapeTemplate/TemplateContext/TempFindByTids/s:" + tid).toString();
-			object = JSONObject.toJSON(temp);
-		}
-		return (object != null && object.size() != 0) ? object : null;
+		return (tempobj != null && tempobj.size() != 0) ? tempobj : null;
 	}
 
 	/**
@@ -528,18 +552,28 @@ public class ContentGroupModel {
 	@SuppressWarnings("unchecked")
 	public JSONArray getPrev(String ogid) {
 		JSONArray rList = new JSONArray();
-		JSONObject temp = null;
+		JSONObject temp = new JSONObject();
 		String tempID = ogid;
 		if (ogid != null && !ogid.equals("")) {
-			while (temp == null) {
-				temp = bind().eq("_id", tempID).field("_id,name,fatherid").find();
-				if (temp != null) {
-					rList.add(temp);
-					if (temp.containsKey("fatherid")) {
-						tempID = temp.getString("fatherid");
-					} else {
-						temp = null;
+			while (temp != null) {
+				if (!tempID.equals("0")) {
+					temp = bind().eq("_id", tempID).field("_id,name,fatherid").find();
+					if (temp != null) {
+						rList.add(temp);
+						if (temp.containsKey("fatherid")) {
+							tempID = temp.getString("fatherid");
+							if (tempID.contains("$numberLong")) {
+								tempID = JSONObject.toJSON(tempID).getString("$numberLong");
+								if (tempID.equals("0")) {
+									temp = null;
+								}
+							}
+						} else {
+							temp = null;
+						}
 					}
+				}else{
+					temp = null;
 				}
 			}
 		}

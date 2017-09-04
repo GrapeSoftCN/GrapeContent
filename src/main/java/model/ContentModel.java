@@ -11,7 +11,6 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.lang3.ObjectUtils.Null;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -291,7 +290,7 @@ public class ContentModel {
 		return join(getImgs(dencode(array)));
 	}
 
-	public int UpdateArticle( String oid, JSONObject content) {
+	public int UpdateArticle(String oid, JSONObject content) {
 		int role = getRole();
 		if (role == 6) {
 			return 8;
@@ -307,7 +306,6 @@ public class ContentModel {
 				content.remove("_id");
 			}
 			ri = bind().eq("_id", oid).data(content).update() != null ? 0 : 99;
-			nlogger.logout(bind().condString());
 		} catch (Exception e) {
 			e.printStackTrace();
 			nlogger.logout("Content.UpdateArticle: " + e);
@@ -467,13 +465,13 @@ public class ContentModel {
 	public String page(String wbid, int idx, int pageSize, String content) {
 		long total = 0, totalSize = 0;
 		JSONArray array = new JSONArray();
-		db db = getPageDB(content);
-		if (content != null) {
-			// 判断该栏目是否为公开栏目
-			if (!IsPublic(ogid, wbid)) {
-				return resultMessage(7);
-			}
-		}
+		db db = getPageDB(wbid, content);
+		// if (content != null) {
+		// // 判断该栏目是否为公开栏目
+		// if (!IsPublic(ogid, wbid)) {
+		// return resultMessage(7);
+		// }
+		// }
 		array = db.dirty().desc("time").field("_id,mainName,time,wbid,ogid,image").page(idx, pageSize);
 		array = setTemp(array, connId);
 		totalSize = db.dirty().pageMax(pageSize);
@@ -482,12 +480,13 @@ public class ContentModel {
 		return PageShow(getImgs(dencode(array)), total, totalSize, idx, pageSize);
 	}
 
-	private db getPageDB(String content) {
+	private db getPageDB(String wbid, String content) {
 		String key;
 		String value;
 		JSONObject object = JSONObject.toJSON(content);
 		db db = bind();
 		db.eq("slevel", 0);
+		db.eq("wbid", wbid);
 		if (object != null && object.size() != 0) {
 			for (Object object2 : object.keySet()) {
 				key = (String) object2;
@@ -524,7 +523,10 @@ public class ContentModel {
 	 *
 	 */
 	private String getColumn(String ogid) {
-		String value = appsProxy.proxyCall("/GrapeContent/ContentGroup/getConnColumns/" + ogid).toString();
+		String value = appsProxy.proxyCall("/GrapeContent/ContentGroup/getConnColumns/" + ogid, null, null).toString();
+		// String value =
+		// appsProxy.proxyCall("/GrapeContent/ContentGroup/getConnColumns/" +
+		// ogid).toString();
 		return value;
 	}
 
@@ -546,43 +548,42 @@ public class ContentModel {
 		JSONObject template;
 		String ogid, temp = "", templist = "";
 		JSONObject tempJson = new JSONObject();
+		JSONObject obj;
 		if (array != null && array.size() != 0 && value != null && !value.equals("")) {
 			// 根据ogid获取模版
 			tempJson = getTemp(value);
-			// temp = tempJson.getString("tempContent");
-			// templist = tempJson.getString("tempList");
-			JSONObject obj;
-			for (int i = 0; i < array.size(); i++) {
-				obj = (JSONObject) array.get(i);
-				ogid = obj.getString("ogid");
-				template = (JSONObject) tempJson.get(ogid);
-				if (template != null && template.size() != 0) {
-					temp = template.getString("tempContent");
-					templist = template.getString("tempList");
-					obj.put("TemplateContent", temp);
-					obj.put("Templatelist", templist);
+			if (tempJson != null && tempJson.size() != 0) {
+				for (int i = 0; i < array.size(); i++) {
+					obj = (JSONObject) array.get(i);
+					ogid = obj.getString("ogid");
+					template = (JSONObject) tempJson.get(ogid);
+					if (template != null && template.size() != 0) {
+						temp = template.getString("tempContent");
+						templist = template.getString("tempList");
+						obj.put("TemplateContent", temp);
+						obj.put("Templatelist", templist);
+					}
+					array.set(i, obj);
 				}
-				array.set(i, obj);
 			}
 		}
 		return array;
 	}
 
 	private boolean IsPublic(String ogid, String wbid) {
-		nlogger.logout(ogid);
 		long slevel = 0;
-		String wbidByUgid = null;
+		String wbidByUgid = "";
 		String ugid;
 		JSONObject object;
 		if (ogid != null && !ogid.equals("")) {
-			String column = appsProxy.proxyCall("/GrapeContent/ContentGroup/getGroupById/" + ogid)
+			String column = appsProxy.proxyCall("/GrapeContent/ContentGroup/getGroupById/" + ogid, null, null)
 					.toString();
 			object = JSONObject.toJSON(column);
 			if (object != null) {
 				object = (JSONObject) object.get("message");
 				if (object != null) {
 					object = (JSONObject) object.get("records");
-					if (object != null) {
+					if (object != null && object.size() != 0) {
 						String slev = object.getString("slevel");
 						slevel = slev.contains("$numberLong")
 								? Long.parseLong(JSONObject.toJSON(slev).getString("$numberLong"))
@@ -599,8 +600,10 @@ public class ContentModel {
 					}
 				}
 			}
+			return wbidByUgid.equals(wbid);
+		} else {
+			return true;
 		}
-		return wbidByUgid.equals(wbid);
 	}
 
 	// 获取文章所属栏目的模版信息
@@ -611,27 +614,32 @@ public class ContentModel {
 		String columTemplatelist = "";
 		String tid = null;
 		if (ogid != null && !ogid.equals("")) {
-			String column = appsProxy.proxyCall("/GrapeContent/ContentGroup/getGroupByIds/" + ogid)
+			String column = appsProxy.proxyCall("/GrapeContent/ContentGroup/getGroupByIds/" + ogid, null, null)
 					.toString();
+			// String column =
+			// appsProxy.proxyCall("/GrapeContent/ContentGroup/getGroupByIds/" +
+			// ogid).toString();
 			// JSONObject object = JSONHelper.string2json(column);
 			JSONArray arrays = JSONArray.toJSONArray(column);
 			JSONObject object;
-			int l = arrays.size();
-			for (int i = 0; i < l; i++) {
-				object = (JSONObject) arrays.get(i);
-				if (object != null && object.size() != 0) {
-					tid = object.getString("_id");
-					if (object != null && object.get("TemplateContent") != null && object.get("TemplateList") != null) {
-						columTemplateContent = object.get("TemplateContent").toString();
-						columTemplatelist = object.get("TemplateContent").toString();
+			if (arrays != null && arrays.size() != 0) {
+				int l = arrays.size();
+				for (int i = 0; i < l; i++) {
+					object = (JSONObject) arrays.get(i);
+					if (object != null && object.size() != 0) {
+						tid = object.getString("_id");
+						if (object != null && object.get("TemplateContent") != null
+								&& object.get("TemplateList") != null) {
+							columTemplateContent = object.get("TemplateContent").toString();
+							columTemplatelist = object.get("TemplateContent").toString();
+						}
+						tempLateJson.puts("tempContent", columTemplateContent);
+						tempLateJson.puts("tempList", columTemplatelist);
 					}
-					tempLateJson.puts("tempContent", columTemplateContent);
-					tempLateJson.puts("tempList", columTemplatelist);
+					tempJson.put(tid, tempLateJson);
 				}
-				tempJson.put(tid, tempLateJson);
 			}
 		}
-		nlogger.logout(tempJson);
 		return tempJson;
 	}
 
@@ -861,7 +869,10 @@ public class ContentModel {
 		if (object != null && object.size() != 0) {
 			String wbid = object.getString("wbid");
 			// 显示默认缩略图
-			String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid).toString();
+			String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid, null, null).toString();
+			// String temp =
+			// appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" +
+			// wbid).toString();
 			JSONObject Obj = JSONObject.toJSON(temp);
 			if (Obj != null && Obj.size() != 0) {
 				thumbnail = Obj.getString("thumbnail");
@@ -944,7 +955,7 @@ public class ContentModel {
 			ugid = UserInfo.getString("ugid");
 			wbidByUgid = getCompByugid(ugid);
 		}
-		return wbidByUgid.equals(wbid);
+		return wbidByUgid.contains(wbid);
 	}
 
 	/**
@@ -961,7 +972,9 @@ public class ContentModel {
 	 *
 	 */
 	private String getCompByugid(String ugid) {
-		String role = appsProxy.proxyCall("/GrapeUser/roles/getRole/" + ugid).toString();
+		String role = appsProxy.proxyCall("/GrapeUser/roles/getRole/" + ugid, null, null).toString();
+		// String role = appsProxy.proxyCall("/GrapeUser/roles/getRole/" +
+		// ugid).toString();
 		JSONObject object = JSONObject.toJSON(role);
 		if (object != null) {
 			object = (JSONObject) object.get("message");
@@ -1070,9 +1083,9 @@ public class ContentModel {
 		return object;
 	}
 
-	public String findnew() {
-		JSONObject object = bind().eq("state", 2).desc("time").desc("_id").find();
-		return resultMessage(join(getImg(object)));
+	public String findbywbid(String wbid) {
+		JSONArray array = bind().eq("wbid", wbid).eq("state", 2).desc("time").desc("_id").limit(20).select();
+		return resultMessage(join(getImgs(array)));
 	}
 
 	// 获取某个栏目下的最新的文章
@@ -1136,6 +1149,7 @@ public class ContentModel {
 		JSONArray array = null;
 		// JSONArray condArray = JSONArray.toJSONArray(condString);
 		db db = getConddb(condString, wbid);
+		nlogger.logout(db.condString());
 		array = db.dirty().field("_id,mainName,time,wbid,ogid").page(idx, pageSize);
 		totalSize = db.dirty().pageMax(pageSize);
 		total = db.count();
@@ -1177,7 +1191,9 @@ public class ContentModel {
 	private db getConddb(String condString, String wbid) {
 		JSONArray condArray = JSONArray.toJSONArray(condString);
 		db db = bind();
-		db.eq("wbid", wbid);
+		if (!wbid.equals("") && !wbid.equals(null)) {
+			db.eq("wbid", wbid);
+		}
 		if (condArray != null && condArray.size() != 0) {
 			JSONObject object = getConnColumn(condArray);
 			if (object != null && object.size() != 0) {
@@ -1221,8 +1237,11 @@ public class ContentModel {
 				}
 			}
 			if (value != null && !value.equals("")) {
-				value = appsProxy.proxyCall("/GrapeContent/ContentGroup/getConnColumns/" + value)
+				value = appsProxy.proxyCall("/GrapeContent/ContentGroup/getConnColumns/" + value, null, null)
 						.toString();
+				// value =
+				// appsProxy.proxyCall("/GrapeContent/ContentGroup/getConnColumns/"
+				// + value).toString();
 			}
 			obj.put("condArray", condArray);
 			obj.put("column", value);
@@ -1255,7 +1274,9 @@ public class ContentModel {
 					obj.put("content", string);
 					array.add(obj);
 				}
-				info = appsProxy.proxyCall("/GrapeWord/Word/AddWords/" + array.toString()).toString();
+				info = appsProxy.proxyCall("/GrapeWord/Word/AddWords/" + array.toString(), null, null).toString();
+				// info = appsProxy.proxyCall("/GrapeWord/Word/AddWords/" +
+				// array.toString()).toString();
 			}
 		}
 		return info;
@@ -1290,8 +1311,8 @@ public class ContentModel {
 		db db = bind();
 		JSONArray array = null;
 		try {
-			db.eq("wbid", wbid).eq("slevel", 0).eq("ogid", ogid).field("_id,mainName,ogid,time").desc("time")
-					.desc("sort").limit(20);
+			db.eq("wbid", wbid).eq("state", 2).eq("slevel", 0).eq("ogid", ogid).field("_id,mainName,ogid,time")
+					.desc("time").limit(20);
 			array = db.select();
 			array = dencode(array);
 		} catch (Exception e) {
@@ -1430,11 +1451,15 @@ public class ContentModel {
 	public String getPrev(String ogid) {
 		String prevCol = null;
 		if (ogid.contains("$numberLong")) {
-			nlogger.logout("输出数字为0");
-			return prevCol;
+			ogid = JSONObject.toJSON(ogid).getString("$numberLong");
 		}
 		try {
-			prevCol = appsProxy.proxyCall("/GrapeContent/ContentGroup/getPrevCol/s:" + ogid).toString();
+			if (!ogid.equals("0")) {
+				prevCol = appsProxy.proxyCall("/GrapeContent/ContentGroup/getPrevCol/s:" + ogid, null, null).toString();
+			}
+			// prevCol =
+			// appsProxy.proxyCall("/GrapeContent/ContentGroup/getPrevCol/s:" +
+			// ogid).toString();
 		} catch (Exception e) {
 			nlogger.logout("Content.getprev: " + e);
 			prevCol = null;
@@ -1646,7 +1671,7 @@ public class ContentModel {
 	 * @return
 	 *
 	 */
-	private String RemoveUrlPrefix(String imageUrl) {
+	public String RemoveUrlPrefix(String imageUrl) {
 		String imgurl = "";
 		if (imageUrl.equals("") || imageUrl == null) {
 			return imageUrl;
@@ -1757,7 +1782,6 @@ public class ContentModel {
 		JSONObject tmpJSON = object;
 		if (tmpJSON != null) {
 			if (!tmpJSON.containsKey("tempid")) {
-				nlogger.logout(tmpJSON.toJSONString());
 			} else {
 				tmpJSON.put("tempContent", getTemplate(tmpJSON.get("tempid").toString()));
 			}
@@ -1776,8 +1800,11 @@ public class ContentModel {
 				if (redis.get(tid) != null) {
 					temp = redis.get(tid).toString();
 				} else {
-					temp = appsProxy.proxyCall("/GrapeTemplate/TemplateContext/TempFindByTid/s:" + tid)
+					temp = appsProxy.proxyCall("/GrapeTemplate/TemplateContext/TempFindByTid/s:" + tid, null, null)
 							.toString();
+					// temp =
+					// appsProxy.proxyCall("/GrapeTemplate/TemplateContext/TempFindByTid/s:"
+					// + tid).toString();
 					redis.set(tid, temp);
 					redis.setExpire(tid, 10 * 3600);
 				}
@@ -1860,7 +1887,7 @@ public class ContentModel {
 	// 分页显示部分
 	public String PageShow(JSONArray array, long total, long totalSize, int current, int PageSize) {
 		JSONObject object = new JSONObject();
-		object.put("data", (array != null && array.size() != 0) ? array : new JSONArray());
+		object.put("data", (array != null && array.size() != 0) ? dencode(getImgs(array)) : new JSONArray());
 		object.put("total", total);
 		object.put("totalSize", totalSize);
 		object.put("currentPage", current);
@@ -1896,18 +1923,6 @@ public class ContentModel {
 		return host;
 	}
 
-	// 获取栏目管理员
-	private String getManager(String ogid) {
-		String manager = appsProxy.proxyCall("/GrapeContent/ContentGroup/getManagerByOgid/" + ogid)
-				.toString();
-		JSONObject object = JSONObject.toJSON(manager);
-		String ownid = null;
-		if (object != null && object.size() != 0 && object.containsKey("ownid")) {
-			ownid = object.getString("ownid");
-		}
-		return (ownid != null && !ownid.equals("")) ? ownid : "0";
-	}
-
 	/**
 	 * 将map添加至JSONObject中
 	 * 
@@ -1917,8 +1932,6 @@ public class ContentModel {
 	 */
 	public JSONObject AddMap(HashMap<String, Object> map, JSONObject object) {
 		String key = "";
-		String ogid = "";
-		String managerid = ""; // 文章审核员 即栏目管理员
 		if (map.entrySet() != null) {
 			Iterator<Entry<String, Object>> iterator = map.entrySet().iterator();
 			while (iterator.hasNext()) {
@@ -1928,33 +1941,47 @@ public class ContentModel {
 					object.put(entry.getKey(), entry.getValue());
 				}
 			}
-			if (object.containsKey("ogid")) {
-				ogid = object.getString("ogid");
-				if (!ogid.equals("0")) {
-					managerid = getManager(ogid);
-					object.put("manageid", managerid);
+		}
+		return SetState(object);
+	}
+
+	/**
+	 * 根据栏目id审核状态，设置文章状态
+	 * @project	GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param object
+	 * @return
+	 *
+	 */
+	public JSONObject SetState(JSONObject object) {
+		JSONObject obj = null;
+		long state = 0;
+		String tempstate;
+		if (object != null && object.size() != 0) {
+			String ogid = object.getString("ogid");
+			if (!ogid.equals("") && !ogid.equals("0")) {
+				// 获取栏目信息
+				String temp = appsProxy.proxyCall("/GrapeContent/ContentGroup/getGroupById/" + ogid, null, null)
+						.toString();
+				obj = JSONObject.toJSON(temp);
+			}
+		}
+		if (obj != null) {
+			obj = JSONObject.toJSON(obj.getString("message"));
+			obj = JSONObject.toJSON(obj.getString("records"));
+			if (obj.containsKey("isreview")) {
+				tempstate = obj.getString("isreview");
+				if (tempstate.contains("$numberLong")) {
+					tempstate = JSONObject.toJSON(tempstate).getString("$numberLong");
+				}
+				if (tempstate.equals("0")) {
+					state = 2;
 				}
 			}
 		}
-		int roleSign = getRole();
-		if (roleSign == 2) {
-			object.put("state", 2);
-		}
-		// if (roleSign != 6) {
-		// object.put("state", 2);
-		// } else {
-		// if (object.containsKey("ogid")) {
-		// object.put("state", 1);
-		// // 获取栏目管理员
-		// String group = appsProxy.proxyCall(getHost(0),
-		// appsProxy.appid() + "/15/ContentGroup/getManagerByOgid/" +
-		// object.get("ogid"), null, null)
-		// .toString();
-		// JSONObject obj = JSONObject.toJSON(group);
-		// String manageid = obj != null ? (String) obj.get("ownid") : "";
-		// object.put("manageid", manageid);
-		// }
-		// }
+		object.put("state", state);
 		return object;
 	}
 

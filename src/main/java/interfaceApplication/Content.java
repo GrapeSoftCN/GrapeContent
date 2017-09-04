@@ -9,12 +9,11 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import apps.appsProxy;
+import database.DBHelper;
 import database.db;
 import json.JSONHelper;
 import model.ContentModel;
-import model.GetHost;
 import nlogger.nlogger;
-import rpc.execRequest;
 import security.codec;
 import session.session;
 import string.StringHelper;
@@ -25,16 +24,20 @@ import time.TimeHelper;
 public class Content {
 	private ContentModel content = new ContentModel();
 	private HashMap<String, Object> defmap = new HashMap<>();
-	private session session;
+	private session se;
 	private JSONObject UserInfo = new JSONObject();
 	private String sid = null;
-	private String ip = GetHost.getHost(0);
+
+	private db getContentCache() {
+		DBHelper ContentCache = new DBHelper("mongodb", "objectListCache");
+		return ContentCache.bind(appsProxy.appidString());
+	}
 
 	public Content() {
-		session = new session();
-		sid = (String) execRequest.getChannelValue("sid");
+		se = new session();
+		sid = session.getSID();
 		if (sid != null) {
-			UserInfo = session.getSession(sid);
+			UserInfo = se.getSession();
 		}
 		defmap.put("subName", null);
 		defmap.put("image", "");
@@ -44,10 +47,10 @@ public class Content {
 		defmap.put("content", "");
 		defmap.put("type", 1); // 文章类型
 		defmap.put("fatherid", "0");
-		defmap.put("author", 0);
+		defmap.put("author", "0");
 		defmap.put("attribute", 0);
-		defmap.put("ogid", 0);
-		defmap.put("attrid", 0);
+		defmap.put("ogid", "0");
+		defmap.put("attrid", "0");
 		defmap.put("sort", 0);
 		defmap.put("isdelete", 0);
 		defmap.put("isvisble", 0);
@@ -57,7 +60,7 @@ public class Content {
 		defmap.put("slevel", 0);
 		defmap.put("readCount", 0);
 		defmap.put("thirdsdkid", "");
-		defmap.put("tempid", 0);
+		defmap.put("tempid", "0");
 		defmap.put("wbid", (UserInfo != null && UserInfo.size() != 0) ? UserInfo.get("currentWeb").toString() : "");
 		defmap.put("u", 2000);
 		defmap.put("r", 1000);
@@ -82,6 +85,171 @@ public class Content {
 			imageURL = "\\" + imageURL.substring(i);
 		}
 		return imageURL;
+	}
+
+	/**
+	 * 推送文章到上级站点
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param ArticleInfo
+	 * @return
+	 *
+	 */
+	public String pushArticle(String wbid, String ArticleInfo) {
+		int code = 99;
+		db db = getContentCache();
+		String oid = "";
+		JSONObject object = JSONHelper.string2json(ArticleInfo);
+		if (wbid != null && !wbid.equals("") && object != null && object.size() != 0) {
+			String[] values = wbid.split(",");
+			for (String value : values) {
+				if (object.containsKey("ogid")) {
+					object.put("ogid", "");
+				}
+				if (object.containsKey("_id")) {
+					oid = ((JSONObject) object.get("_id")).getString("$oid");
+					object.remove("_id");
+				}
+				if (object.containsKey("wbid")) {
+					object.remove("wbid");
+				}
+				object.put("wbid", value);
+				object = pushDencode(object);
+				if (!CheckContentCache(oid, value)) {
+					object = content.AddMap(defmap, object);
+					code = db.data(object).insertOnce() != null ? 0 : 99;
+				}
+			}
+		}
+		return content.resultMessage(code, "文章推送成功");
+	}
+
+	public String pushToColumn(String oid, String data) {
+		String result = content.resultMessage(99);
+		db db = getContentCache();
+		db dbcontent = content.bind();
+		JSONObject object = db.eq("_id", oid).find();
+		if (object != null && object.size() != 0) {
+			object.remove("_id");
+			object = remoNumberLong(object);
+			String info = dbcontent.data(object).insertOnce().toString();
+			result = EditArticle(info, data);
+			if (JSONObject.toJSON(result).getString("errorcode").equals("0")) {
+				db.eq("_id", oid).delete();
+			}
+		}
+		return result;
+	}
+
+	private JSONObject remoNumberLong(JSONObject object) {
+		String temp;
+		String[] param = { "type", "attribute", "sort", "type", "isdelete", "isvisble", "state", "substate", "slevel",
+				"readCount", "u", "r", "d", "time" };
+		if (object.containsKey("fatherid")) {
+			temp = object.getString("fatherid");
+			if (temp.contains("$numberLong")) {
+				temp = JSONObject.toJSON(temp).getString("$numberLong");
+			}
+			object.put("fatherid", temp);
+		}
+		if (object.containsKey("tempid")) {
+			temp = object.getString("tempid");
+			if (temp.contains("$numberLong")) {
+				temp = JSONObject.toJSON(temp).getString("$numberLong");
+			}
+			object.put("tempid", temp);
+		}
+		if (param != null && param.length > 0) {
+			for (String value : param) {
+				if (object.containsKey(value)) {
+					temp = object.getString(value);
+					if (temp.contains("$numberLong")) {
+						temp = JSONObject.toJSON(temp).getString("$numberLong");
+					}
+					object.put(value, Long.parseLong(temp));
+				}
+			}
+		}
+		return object;
+	}
+
+	private JSONObject pushDencode(JSONObject obj) {
+		String value = obj.get("content").toString();
+		value = codec.DecodeHtmlTag(value);
+		value = codec.decodebase64(value);
+		obj.escapeHtmlPut("content", value);
+		if (obj.containsKey("image")) {
+			String image = obj.getString("image");
+			if (!image.equals("") && image != null) {
+				image = codec.DecodeHtmlTag(image);
+				obj.put("image", content.RemoveUrlPrefix(image));
+			}
+		}
+		if (obj.containsKey("thumbnail")) {
+			String image = obj.getString("thumbnail");
+			if (!image.equals("") && image != null) {
+				image = codec.DecodeHtmlTag(image);
+				obj.put("thumbnail", content.RemoveUrlPrefix(image));
+			}
+		}
+		return obj;
+	}
+
+	/**
+	 * 查看推送的文章
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param idx
+	 * @param pageSize
+	 * @param condString
+	 * @return
+	 *
+	 */
+	public String searchPushArticle(int idx, int pageSize, String condString) {
+		db db = getContentCache();
+		JSONArray array = null;
+		String wbid = "";
+		long total = 0, totalSize = 0;
+		if (UserInfo != null && UserInfo.size() != 0) {
+			wbid = UserInfo.getString("currentWeb");
+			if (!wbid.equals("")) {
+				db.eq("wbid", wbid);
+				if (condString != null) {
+					JSONArray condArray = JSONArray.toJSONArray(condString);
+					if (condArray != null && condArray.size() != 0) {
+						db.where(condArray);
+					}
+				}
+				array = db.dirty().page(idx, pageSize);
+				total = db.dirty().count();
+				totalSize = db.pageMax(pageSize);
+			}
+		}
+		return content.PageShow(content.getImgs(getDefaultImage(wbid, array)), total, totalSize, idx, pageSize);
+	}
+
+	/**
+	 * 验证文章是否存在
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param oid
+	 * @param wbid
+	 * @return
+	 *
+	 */
+	private boolean CheckContentCache(String oid, String wbid) {
+		db db = getContentCache();
+		JSONObject object = db.eq("_id", oid).eq("wbid", wbid).find();
+		return (object != null && object.size() != 0);
 	}
 
 	/**
@@ -161,13 +329,14 @@ public class Content {
 		String image;
 		JSONObject infos = JSONHelper.string2json(contents);
 		if (UserInfo != null && UserInfo.size() != 0) {
-			String wbid = UserInfo.get("currentWeb").toString();
 			if (infos != null) {
 				try {
-					String value = infos.get("content").toString();
-					value = codec.DecodeHtmlTag(value);
-					value = codec.decodebase64(value);
-					infos.escapeHtmlPut("content", value);
+					if (infos.containsKey("content")) {
+						String value = infos.get("content").toString();
+						value = codec.DecodeHtmlTag(value);
+						value = codec.decodebase64(value);
+						infos.escapeHtmlPut("content", value);
+					}
 					if (infos.containsKey("image")) {
 						image = infos.get("image").toString();
 						image = getImageUri(codec.DecodeHtmlTag(image));
@@ -206,8 +375,11 @@ public class Content {
 		JSONObject obj = db.eq("_id", oid).field("ogid").limit(1).find();
 		if (obj != null && obj.size() != 0) {
 			String ogid = obj.getString("ogid");
-			code = appsProxy.proxyCall("/GrapeContent/ContentGroup/GroupEdit/" + ogid + "/" + Data)
+			code = appsProxy.proxyCall("/GrapeContent/ContentGroup/GroupEdit/" + ogid + "/" + Data, null, null)
 					.toString();
+			// code =
+			// appsProxy.proxyCall("/GrapeContent/ContentGroup/GroupEdit/" +
+			// ogid + "/" + Data).toString();
 		}
 		return code;
 	}
@@ -233,8 +405,8 @@ public class Content {
 	 * 
 	 * @return
 	 */
-	public String FindNewArc() {
-		return content.findnew();
+	public String FindNewArc(String wbid) {
+		return content.findbywbid(wbid);
 	}
 
 	/**
@@ -307,8 +479,11 @@ public class Content {
 			String column = AddColumnClick(id);
 			tempObj = JSONObject.toJSON(column);
 			if (tempObj != null && tempObj.size() != 0) {
-				temp = appsProxy.proxyCall("/GrapeContent/ContentGroup/GroupEdits/" + id + "/" + column)
+				temp = appsProxy.proxyCall("/GrapeContent/ContentGroup/GroupEdits/" + id + "/" + column, null, null)
 						.toString();
+				// temp =
+				// appsProxy.proxyCall("/GrapeContent/ContentGroup/GroupEdits/"
+				// + id + "/" + column).toString();
 				tempObj = JSONObject.toJSON(temp);
 				if (tempObj != null && tempObj.size() != 0) {
 					code = tempObj.getInt("errorcode");
@@ -328,7 +503,9 @@ public class Content {
 		String id = "";
 		int l;
 		ogid = obj.getString("ogid");
-		ogid = appsProxy.proxyCall("/GrapeContent/ContentGroup/getPrevCol/" + ogid).toString();
+		ogid = appsProxy.proxyCall("/GrapeContent/ContentGroup/getPrevCol/" + ogid, null, null).toString();
+		// ogid = appsProxy.proxyCall("/GrapeContent/ContentGroup/getPrevCol/" +
+		// ogid).toString();
 		array = JSONArray.toJSONArray(ogid);
 		if (array != null && array.size() != 0) {
 			l = array.size();
@@ -349,7 +526,10 @@ public class Content {
 		String[] ids = id.split(",");
 		String tempCount;
 		long clickcount;
-		String temp = appsProxy.proxyCall("/GrapeContent/ContentGroup/getClickCount/" + id).toString();
+		String temp = appsProxy.proxyCall("/GrapeContent/ContentGroup/getClickCount/" + id, null, null).toString();
+		// String temp =
+		// appsProxy.proxyCall("/GrapeContent/ContentGroup/getClickCount/" +
+		// id).toString();
 		// 获取栏目点击次数
 		JSONObject column = JSONObject.toJSON(temp);
 		if (column != null && column.size() != 0) {
@@ -505,6 +685,70 @@ public class Content {
 	}
 
 	/**
+	 * 显示审核文章，condString为null，显示所有的文章
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param idx
+	 * @param pageSize
+	 * @param condString
+	 *
+	 */
+	public String ShowArticle(int idx, int pageSize, String condString) {
+		long total = 0, totalSize = 0;
+		JSONArray condArray = JSONArray.toJSONArray(condString);
+		JSONArray tempArray = getTemplate(condArray);
+		String wbid = (UserInfo != null && UserInfo.size() != 0) ? UserInfo.get("currentWeb").toString() : "";
+		// 获取下级站点
+		String[] wbids = getAllContent(wbid);
+		JSONArray array = null;
+		if (wbids != null && wbids.length > 0) {
+			db db = content.bind();
+			db.or();
+			for (String id : wbids) {
+				db.eq("wbid", id);
+			}
+			if (condString != null) {
+				if (condArray != null && condArray.size() != 0) {
+					db.and();
+					db.where(condArray);
+				}
+			}
+			array = db.dirty().desc("sort").desc("time").page(idx, pageSize);
+			total = db.count();
+			db.clear();
+			totalSize = (int) Math.ceil((double) total / pageSize);
+			array = setTemplate(array, tempArray);
+			array = content.dencode(array);
+		}
+		return content.PageShow(content.getImgs(getDefaultImage(wbid, array)), total, totalSize, idx, pageSize);
+	}
+
+	/**
+	 * 获取当前网站的下级站点的所有文章【提供状态显示】
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 *
+	 */
+	private String[] getAllContent(String wbid) {
+		String wbids = "";
+		String[] value = null;
+		if (wbid != null && !wbid.equals("")) {
+			// 获取所有下级站点
+			wbids = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getChildwebs/" + wbid, null, null).toString();
+			if (wbids != null && !wbids.equals("")) {
+				value = wbids.split(",");
+			}
+		}
+		return value;
+	}
+
+	/**
 	 * 获取默认缩略图
 	 * 
 	 * @project GrapeContent
@@ -518,17 +762,22 @@ public class Content {
 	 */
 	private JSONArray getDefaultImage(String wbid, JSONArray array) {
 		String thumbnail = "";
-		int l = array.size();
-		// 显示默认缩略图
-		String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid).toString();
-		JSONObject Obj = JSONObject.toJSON(temp);
-		if (Obj != null && Obj.size() != 0) {
-			thumbnail = Obj.getString("thumbnail");
-		}
-		for (int i = 0; i < l; i++) {
-			Obj = (JSONObject) array.get(i);
-			Obj.put("thumbnail", thumbnail);
-			array.set(i, Obj);
+		if (!wbid.equals("") && array != null && array.size() != 0) {
+			int l = array.size();
+			// 显示默认缩略图
+			String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid, null, null).toString();
+			// String temp =
+			// appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" +
+			// wbid).toString();
+			JSONObject Obj = JSONObject.toJSON(temp);
+			if (Obj != null && Obj.size() != 0) {
+				thumbnail = Obj.getString("thumbnail");
+			}
+			for (int i = 0; i < l; i++) {
+				Obj = (JSONObject) array.get(i);
+				Obj.put("thumbnail", thumbnail);
+				array.set(i, Obj);
+			}
 		}
 		return array;
 	}
@@ -561,17 +810,24 @@ public class Content {
 					TemplateContent = obj.getString("TemplateContent");
 					Templatelist = obj.getString("TemplateList");
 					tid = obj.getString("_id");
-					tempObj.put(tid, TemplateContent + "," + Templatelist);
+					if (!TemplateContent.equals("") && !Templatelist.equals("")) {
+						tempObj.put(tid, TemplateContent + "," + Templatelist);
+					}
 				}
 			}
 			JSONObject object = new JSONObject();
 			String[] temp;
+			String list = "", content = "";
 			for (int i = 0; i < array.size(); i++) {
 				object = (JSONObject) array.get(i);
 				value = object.getString("ogid");
-				temp = tempObj.getString(value).split(",");
-				object.put("TemplateContent", temp[0]);
-				object.put("Templatelist", temp[1]);
+				if (tempObj != null && tempObj.size() != 0) {
+					temp = tempObj.getString(value).split(",");
+					content = temp[0];
+					list = temp[1];
+				}
+				object.put("TemplateContent", content);
+				object.put("Templatelist", list);
 				array.set(i, object);
 			}
 		}
@@ -606,10 +862,16 @@ public class Content {
 					}
 				}
 			}
-			if (!ogid.equals("") && ogid.length() > 0) {
+			if (ogid != null && !ogid.equals("") && ogid.length() > 0) {
 				ogid = StringHelper.fixString(ogid, ',');
-				column = appsProxy.proxyCall("/GrapeContent/ContentGroup/getGroupByIds/" + ogid).toString();
-				array = JSONArray.toJSONArray(column);
+				if (ogid != null && !ogid.equals("")) {
+					column = appsProxy.proxyCall("/GrapeContent/ContentGroup/getGroupByIds/" + ogid, null, null)
+							.toString();
+					// column =
+					// appsProxy.proxyCall("/GrapeContent/ContentGroup/getGroupByIds/"
+					// + ogid).toString();
+					array = JSONArray.toJSONArray(column);
+				}
 			}
 		}
 		return array;
@@ -659,6 +921,23 @@ public class Content {
 		JSONObject object = JSONHelper.string2json(ArticleInfo);
 		object = content.AddMap(defmap, object);
 		return content.insert(object);
+	}
+
+	/**
+	 * 判断当前文章栏目是否需要审核
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param ogid
+	 * @return
+	 *
+	 */
+	private boolean getArticleState(String ogid) {
+		ContentGroup group = new ContentGroup();
+		String managerid = group.getManagerByOgid(ogid);
+		return !managerid.equals("");
 	}
 
 	public JSONObject getwbid(String wbid, JSONObject object) {
@@ -737,13 +1016,20 @@ public class Content {
 	}
 
 	// 审核
-	public String Review(String oid, String managerid, String state) {
+	public String review(String oid, String reviewData) {
 		int code = 99;
-		if (UserInfo != null || UserInfo.size() != 0) {
-			String wbid = UserInfo.get("currentWeb").toString();
-			code = content.review(wbid, oid, managerid, state);
+		String key;
+		JSONObject object = JSONObject.toJSON(reviewData);
+		if (object != null && object.size() != 0) {
+			for (Object obj : object.keySet()) {
+				key = obj.toString();
+				if (key.equals("state")) {
+					object.put("state", Long.parseLong(object.getString(key)));
+				}
+			}
 		}
-		return content.resultMessage(code, "审核文章操作成功");
+		code = content.bind().eq("_id", oid).data(object).update() != null ? 0 : 99;
+		return content.resultMessage(code, "文章审核成功");
 	}
 
 	public String BatchDelete(String oid) {
@@ -781,11 +1067,11 @@ public class Content {
 	public String getContent(String ogid, int no) {
 		String ids = null;
 		try {
+			String tips = appsProxy.proxyCall("/GrapeContent/ContentGroup/getColumnByFid/s:" + ogid, null, null)
+					.toString();
 			// String tips =
 			// appsProxy.proxyCall("/GrapeContent/ContentGroup/getColumnByFid/s:"
 			// + ogid).toString();
-			String tips = appsProxy.proxyCall("/GrapeContent/ContentGroup/getColumnByFid/s:" + ogid)
-					.toString();
 			String message = JSONHelper.string2json(tips).get("message").toString();
 			String records = JSONHelper.string2json(message).get("records").toString();
 			JSONArray array = JSONHelper.string2array(records);
@@ -912,7 +1198,7 @@ public class Content {
 				}
 			}
 			if (value != null && !value.equals("")) {
-				wbid = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + value).toString();
+				wbid = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + value, null, null).toString();
 			}
 			if (wbid != null && !wbid.equals("")) {
 				wbids = wbid.split(",");
@@ -925,4 +1211,132 @@ public class Content {
 		}
 		return StringHelper.join(list);
 	}
+
+	/**
+	 * 追加内容数据
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param id
+	 * @param info
+	 * @return
+	 *
+	 */
+	public String AddAppend(String id, String info) {
+		db db = content.bind();
+		int code = 99;
+		String contents = "", oldcontent;
+		JSONObject object = db.eq("_id", id).find();
+		JSONObject obj = JSONObject.toJSON(info);
+		if (obj != null && obj.size() != 0) {
+			if (obj.containsKey("content")) {
+				contents = obj.getString("content");
+				contents = codec.DecodeHtmlTag(contents);
+				contents = codec.decodebase64(contents);
+				obj.escapeHtmlPut("content", contents);
+				oldcontent = object.getString("content");
+				oldcontent += obj.getString("content");
+				obj.put("content", oldcontent);
+			}
+			code = db.eq("_id", id).data(obj).update() != null ? 0 : 99;
+		}
+		return content.resultMessage(code, "追加文档成功");
+	}
+
+	public String totalArticle(String wbid) {
+		return content.resultMessage(getGroup(wbid));
+	}
+
+	// 获取全部站点id
+	public String[] getAllWeb(String wbid) {
+		String wbids = "";
+		String[] value = null;
+		if (wbid != null && !wbid.equals("")) {
+			// 获取所有下级站点
+			wbids = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + wbid, null, null).toString();
+			if (wbids != null && !wbids.equals("")) {
+				value = wbids.split(",");
+			}
+		}
+		return value;
+	}
+
+	// 按状态统计数据
+	private JSONArray getGroup(String wbid) {
+		String webtemp = "";
+		// 获取所有网站id
+		String[] wbids = getAllWeb(wbid);
+		webtemp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getFWebInfo/" + StringHelper.join(wbids), null, null)
+				.toString();
+		db db = content.bind();
+		JSONArray temparray = db.eq("state", 0).count("state").group("wbid"); // 待审核文章
+		JSONArray tempArray = db.eq("state", 1).count("state").group("wbid"); // 审核不通过
+		JSONArray TempArray = db.eq("state", 2).count("state").group("wbid"); // 审核通过
+		return AppendState(temparray, tempArray, TempArray, wbids, webtemp);
+	}
+
+	// 合并文章统计数据
+	private JSONArray AppendState(JSONArray temparray, JSONArray tempArray, JSONArray TempArray, String[] wbids,
+			String WebInfo) {
+		JSONObject webTemp = JSONObject.toJSON(WebInfo);
+		JSONArray array = null;
+		JSONObject object = null;
+		String info = "", webName = "", fatherid = "0";
+		long checking = 0, checked = 0, uncheck = 0;
+		if (wbids != null && !wbids.equals("")) {
+			array = new JSONArray();
+			for (String value : wbids) {
+				object = new JSONObject();
+				checking = judgeWbid(value, temparray); // 待审核文章
+				uncheck = judgeWbid(value, tempArray); // 审核不通过
+				checked = judgeWbid(value, TempArray); // 审核通过
+				if (webTemp != null && webTemp.size() != 0) {
+					info = webTemp.getString(value);
+					if (info != null && !info.equals("")) {
+						webName = info.split(",")[0];
+						fatherid = info.split(",")[1];
+					}
+				}
+				object.put("wbid", value);
+				object.put("fatherid", fatherid);
+				object.put("webName", webName);
+				object.put("checking", checking); // 待审核
+				object.put("uncheck", uncheck); // 审核不通过
+				object.put("checked", checked); // 审核通过
+				array.add(object);
+			}
+		}
+		return array;
+	}
+
+	private long judgeWbid(String id, JSONArray temparray) {
+		JSONObject object;
+		String wbid;
+		int l = 0;
+		long count = 0;
+		if (temparray != null && temparray.size() != 0) {
+			l = temparray.size();
+			for (int i = 0; i < l; i++) {
+				object = (JSONObject) temparray.get(i);
+				wbid = object.getString("_id");
+				if (id.equals(wbid)) {
+					count = Long.parseLong(object.getString("count"));
+					break;
+				}
+			}
+		}
+		return count;
+	}
+
+//	private void total(String wbid) {
+//		String[] value;
+//		String tempwbid = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getChildrenWeb/" + wbid, null, null).toString();
+//		JSONArray array = getGroup(wbid);
+//		if (!tempwbid.equals("")) {
+//			value = tempwbid.split(",");
+//			
+//		}
+//	}
 }
