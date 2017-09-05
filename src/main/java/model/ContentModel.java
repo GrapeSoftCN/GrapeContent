@@ -1149,7 +1149,6 @@ public class ContentModel {
 		JSONArray array = null;
 		// JSONArray condArray = JSONArray.toJSONArray(condString);
 		db db = getConddb(condString, wbid);
-		nlogger.logout(db.condString());
 		array = db.dirty().field("_id,mainName,time,wbid,ogid").page(idx, pageSize);
 		totalSize = db.dirty().pageMax(pageSize);
 		total = db.count();
@@ -1884,6 +1883,15 @@ public class ContentModel {
 		return value;
 	}
 
+	public String getcheckid() {
+		String value = null;
+		try {
+			value = getAppIp("CheckId");
+		} catch (Exception e) {
+			value = null;
+		}
+		return value;
+	}
 	// 分页显示部分
 	public String PageShow(JSONArray array, long total, long totalSize, int current, int PageSize) {
 		JSONObject object = new JSONObject();
