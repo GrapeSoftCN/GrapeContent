@@ -9,12 +9,12 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import apps.appsProxy;
+import cache.CacheHelper;
 import database.DBHelper;
 import database.db;
 import json.JSONHelper;
 import model.ContentModel;
 import model.WsCount;
-import model.wsCounts;
 import nlogger.nlogger;
 import security.codec;
 import session.session;
@@ -29,6 +29,7 @@ public class Content {
 	private session se;
 	private JSONObject UserInfo = new JSONObject();
 	private String sid = null;
+//	private String currentWid = "";
 
 	private db getContentCache() {
 		DBHelper ContentCache = new DBHelper("mongodb", "objectListCache");
@@ -40,6 +41,9 @@ public class Content {
 		sid = session.getSID();
 		if (sid != null) {
 			UserInfo = se.getSession();
+//			if (UserInfo != null && UserInfo.size() != 0) {
+//				currentWid = UserInfo.getString("currentWeb");
+//			}
 		}
 		defmap.put("subName", null);
 		defmap.put("image", "");
@@ -147,9 +151,9 @@ public class Content {
 	}
 
 	public void AddArticle() {
-		
+
 	}
-	
+
 	private JSONObject remoNumberLong(JSONObject object) {
 		String temp;
 		String[] param = { "type", "attribute", "sort", "type", "isdelete", "isvisble", "state", "substate", "slevel",
@@ -944,23 +948,6 @@ public class Content {
 		return content.insert(object);
 	}
 
-	/**
-	 * 判断当前文章栏目是否需要审核
-	 * 
-	 * @project GrapeContent
-	 * @package interfaceApplication
-	 * @file Content.java
-	 * 
-	 * @param ogid
-	 * @return
-	 *
-	 */
-	private boolean getArticleState(String ogid) {
-		ContentGroup group = new ContentGroup();
-		String managerid = group.getManagerByOgid(ogid);
-		return !managerid.equals("");
-	}
-
 	public JSONObject getwbid(String wbid, JSONObject object) {
 		if (object != null) {
 			List<String> list = new ArrayList<>();
@@ -1266,97 +1253,17 @@ public class Content {
 		return content.resultMessage(code, "追加文档成功");
 	}
 
-	// 统计
-	public String totalArticle(String wbid) {
-		return content.resultMessage(getGroup(wbid));
-	}
-
-	// 获取全部站点id
-	public String[] getAllWeb(String wbid) {
-		String wbids = "";
-		String[] value = null;
-		if (wbid != null && !wbid.equals("")) {
-			// 获取所有下级站点
-			wbids = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + wbid, null, null).toString();
-			if (wbids != null && !wbids.equals("")) {
-				value = wbids.split(",");
-			}
-		}
-		return value;
-	}
-
-	// 按状态统计数据
-	private JSONArray getGroup(String wbid) {
-		String webtemp = "";
-		// 获取所有网站id
-		String[] wbids = getAllWeb(wbid);
-		webtemp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getFWebInfo/" + StringHelper.join(wbids), null, null)
-				.toString();
-		db db = content.bind();
-		JSONArray temparray = db.eq("state", 0).count("state").group("wbid"); // 待审核文章
-		JSONArray tempArray = db.eq("state", 1).count("state").group("wbid"); // 审核不通过
-		JSONArray TempArray = db.eq("state", 2).count("state").group("wbid"); // 审核通过
-		return AppendState(temparray, tempArray, TempArray, wbids, webtemp);
-	}
-
-	// 合并文章统计数据
-	private JSONArray AppendState(JSONArray temparray, JSONArray tempArray, JSONArray TempArray, String[] wbids,
-			String WebInfo) {
-		JSONObject webTemp = JSONObject.toJSON(WebInfo);
-		JSONArray array = null;
-		JSONObject object = null;
-		String info = "", webName = "", fatherid = "0";
-		long checking = 0, checked = 0, uncheck = 0;
-		if (wbids != null && !wbids.equals("")) {
-			array = new JSONArray();
-			for (String value : wbids) {
-				object = new JSONObject();
-				checking = judgeWbid(value, temparray); // 待审核文章
-				uncheck = judgeWbid(value, tempArray); // 审核不通过
-				checked = judgeWbid(value, TempArray); // 审核通过
-				if (webTemp != null && webTemp.size() != 0) {
-					info = webTemp.getString(value);
-					if (info != null && !info.equals("")) {
-						webName = info.split(",")[0];
-						fatherid = info.split(",")[1];
-					}
-				}
-				object.put("wbid", value);
-				object.put("fatherid", fatherid);
-				object.put("webName", webName);
-				object.put("checking", checking); // 待审核
-				object.put("uncheck", uncheck); // 审核不通过
-				object.put("checked", checked); // 审核通过
-				array.add(object);
-			}
-		}
-		return array;
-	}
-
-	private long judgeWbid(String id, JSONArray temparray) {
-		JSONObject object;
-		String wbid;
-		int l = 0;
-		long count = 0;
-		if (temparray != null && temparray.size() != 0) {
-			l = temparray.size();
-			for (int i = 0; i < l; i++) {
-				object = (JSONObject) temparray.get(i);
-				wbid = object.getString("_id");
-				if (id.equals(wbid)) {
-					count = Long.parseLong(object.getString("count"));
-					break;
-				}
-			}
-		}
-		return count;
-	}
-
 	public String total(String rootID) {
-		JSONObject json = new JSONObject();
-		JSONObject webInfo = JSONObject.toJSON(appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID, null, null).toString());
-		json = new wsCounts().getAllCount(json, rootID, webInfo.getString(rootID), "");
-//		json = new WsCount().getAllCount(json, rootID, webInfo.getString(rootID), "");
-		return json.toJSONString();
+		CacheHelper ch = new CacheHelper();
+		String rString = ch.get("total_COunt_" + rootID);
+		if( rString == null || rString.equals("") ){
+			JSONObject json = new JSONObject();
+//			JSONObject webInfo = JSONObject.toJSON((String)(String)execRequest._run("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID));
+			JSONObject webInfo = JSONObject.toJSON(appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID, null,null).toString());
+			json = new WsCount().getAllCount(json, rootID , webInfo.getString(rootID) , "");
+			rString = json.toJSONString();
+			ch.setget("total_COunt_" + rootID, rString);
+		}
+		return rString;
 	}
 }

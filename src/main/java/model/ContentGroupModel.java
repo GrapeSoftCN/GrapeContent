@@ -22,21 +22,31 @@ import database.userDBHelper;
 import json.JSONHelper;
 import nlogger.nlogger;
 import rpc.execRequest;
+import session.session;
 import string.StringHelper;
 
 public class ContentGroupModel {
 	private formHelper _form;
 	private userDBHelper dbcontent;
+	private session se;
 	// private DBHelper dbcontent;
 	private String appid = String.valueOf(appsProxy.appid());
 	private JSONObject _obj = new JSONObject();
 	private String sid = "";
+	private JSONObject userInfo = null;
+	private String currentId = null;
 
 	public ContentGroupModel() {
+		se = new session();
 		dbcontent = new userDBHelper("objectGroup", (String) execRequest.getChannelValue("sid"));
-		// dbcontent = new userDBHelper("mongodb","objectGroup_test");
 		_form = dbcontent.getChecker();
 		sid = (String) execRequest.getChannelValue("sid");
+		if (sid != null) {
+			userInfo = se.getSession(sid);
+			if (userInfo != null && userInfo.size() != 0) {
+				currentId = ((JSONObject) userInfo.get("_id") ).getString("$oid");
+			}
+		}
 	}
 
 	private db bind() {
@@ -218,9 +228,10 @@ public class ContentGroupModel {
 		JSONObject CondObject = JSONObject.toJSON(condString);
 		String key;
 		long totalSize = 0;
-		db db = bind();
 		int rolePlv = getRoleSign();
+		db db = bind();
 		try {
+			db.eq("wbid", wbid).mask("r,u,d");
 			if (CondObject != null && CondObject.size() != 0) {
 				for (Object obj : CondObject.keySet()) {
 					key = obj.toString();
@@ -228,9 +239,10 @@ public class ContentGroupModel {
 				}
 			}
 			if (rolePlv == 2 || rolePlv == 1 || rolePlv == 0) {
-				db.eq("wbid", wbid).eq("slevel", 0).mask("r,u,d");
-			} else {
-				db.eq("wbid", wbid).mask("r,u,d");
+				db.eq("slevel", 0);
+			}
+			if (rolePlv == 7) {
+				db.eq("editor", currentId);
 			}
 			array = db.dirty().asc("_id").page(idx, pageSize);
 			totalSize = db.pageMax(pageSize);
@@ -428,11 +440,11 @@ public class ContentGroupModel {
 					tContentID = object.getString("tempContent");
 					if (tempTemplateObj.containsKey(tContentID)) {
 						content = tempTemplateObj.getString(tContentID);
-					} 
+					}
 					tListID = object.getString("tempList");
 					if (tempTemplateObj.containsKey(tListID)) {
 						list = tempTemplateObj.getString(tListID);
-					} 
+					}
 				}
 				object.put("TemplateList", list);
 				object.put("TemplateContent", content);
@@ -572,7 +584,7 @@ public class ContentGroupModel {
 							temp = null;
 						}
 					}
-				}else{
+				} else {
 					temp = null;
 				}
 			}

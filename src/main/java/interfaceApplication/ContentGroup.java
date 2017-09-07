@@ -49,7 +49,7 @@ public class ContentGroup {
 		defcol.put("clickCount", 0); // 栏目更新周期内需更新的文章总数
 		defcol.put("editCount", 1); // 栏目更新周期内需更新的文章总数
 		defcol.put("connColumn", "0"); // 关联的栏目id，默认为0，不关联任何栏目
-		defcol.put("isreview", 0);   //该栏目下文章是否需要审核，0：不需要审核，1：需要审核
+		defcol.put("isreview", 0); // 该栏目下文章是否需要审核，0：不需要审核，1：需要审核
 	}
 
 	// 新增
@@ -105,10 +105,12 @@ public class ContentGroup {
 		String wbid = (userInfo != null && userInfo.size() != 0) ? userInfo.getString("currentWeb") : "";
 		return group.findByType(wbid, type, no);
 	}
+
 	public String FindByTypes(String type, int no) {
 		String wbid = (userInfo != null && userInfo.size() != 0) ? userInfo.getString("currentWeb") : "";
 		return group.findByTypes(wbid, type, no);
 	}
+
 	/**
 	 * 查询支持超链接文章的栏目，即contentType为5
 	 * 
@@ -136,7 +138,7 @@ public class ContentGroup {
 		return group.resultMessage(group.setsort(ogid, num), "顺序调整成功");
 	}
 
-	/*-------------------前台------*/
+	/*-------------------前台---------------------*/
 	// 分页
 	public String GroupPage(String wbid, int idx, int pageSize) {
 		if (userInfo != null && userInfo.size() != 0) {
@@ -207,11 +209,6 @@ public class ContentGroup {
 
 	// 设置栏目管理员 userid为用户表 _id
 	public String setManage(String ogid, String userid) {
-		return group.setColumManage(ogid, userid);
-	}
-
-	// 设置栏目编辑 userid为用户表 _id !!
-	public String setEditor(String ogid, String userid) {
 		return group.setColumManage(ogid, userid);
 	}
 
@@ -398,5 +395,45 @@ public class ContentGroup {
 			ogid = ogid + "," + columnId;
 		}
 		return ogid;
+	}
+
+	public String getColumnInfo(String wbid, String name) {
+		JSONArray array = null;
+		String[] value = null;
+		db db = group.getdb();
+		if (wbid != null && !wbid.equals("")) {
+			value = wbid.split(",");
+			db.or();
+			for (String string : value) {
+				db.eq("wbid", string);
+			}
+			db.and();
+			db.eq("name", name);
+			array = db.select();
+		}
+		JSONObject rsObject = JoinObj(value, array);
+		return (rsObject != null && rsObject.size() != 0) ? rsObject.toString() : null ;
+	}
+
+	@SuppressWarnings("unchecked")
+	private JSONObject JoinObj(String[] value, JSONArray array) {
+		JSONObject rsObject = null, object;
+		String id, wbid;
+		if (array != null && array.size() != 0) {
+			rsObject = new JSONObject();
+			int l = array.size();
+			for (int i = 0; i < l; i++) {
+				object = (JSONObject) array.get(i);
+				id = ((JSONObject) object.get("_id")).getString("$oid");
+				wbid = object.getString("wbid");
+				for (String string : value) {
+					if (wbid.equals(string)) {
+						rsObject.put(string, id);
+					}
+				}
+			}
+		}
+		return rsObject;
+
 	}
 }

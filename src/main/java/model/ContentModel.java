@@ -849,7 +849,22 @@ public class ContentModel {
 			AddReader(id);
 		}
 		obj = getImg(dencode(obj));
+		obj = removeNum(obj);
 		return resultMessage(getDefaultImage(obj));
+	}
+
+	private JSONObject removeNum(JSONObject oJsonObject) {
+		String temp ="0";
+		if (oJsonObject != null && oJsonObject.size() != 0) {
+			if (oJsonObject.containsKey("clickcount")) {
+				temp = oJsonObject.getString("clickcount");
+				if (temp.contains("$numberLong")) {
+					temp = JSONObject.toJSON(temp).getString("$numberLong");
+				}
+			}
+		}
+		oJsonObject.put("clickcount", temp);
+		return oJsonObject;
 	}
 
 	/**
@@ -1847,8 +1862,11 @@ public class ContentModel {
 				if (roleplv >= 10000 && roleplv < 12000) {
 					roleSign = 5; // 总管理员
 				}
-				if (roleplv >= 12000) {
-					roleSign = 6; // 总管理员
+				if (roleplv >= 12000 && roleplv < 14000) {
+					roleSign = 6; // 纪委
+				}
+				if (roleplv >= 14000 && roleplv < 16000) {
+					roleSign = 7; // 栏目编辑员
 				}
 			} catch (Exception e) {
 				nlogger.logout(e);
@@ -1892,6 +1910,7 @@ public class ContentModel {
 		}
 		return value;
 	}
+
 	// 分页显示部分
 	public String PageShow(JSONArray array, long total, long totalSize, int current, int PageSize) {
 		JSONObject object = new JSONObject();
@@ -1955,7 +1974,8 @@ public class ContentModel {
 
 	/**
 	 * 根据栏目id审核状态，设置文章状态
-	 * @project	GrapeContent
+	 * 
+	 * @project GrapeContent
 	 * @package model
 	 * @file ContentModel.java
 	 * 
