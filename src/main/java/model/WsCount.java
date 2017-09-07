@@ -1,18 +1,49 @@
 package model;
 
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import apps.appsProxy;
 import database.db;
-import nlogger.nlogger;
 
 public class WsCount {
 	private ContentModel content = new ContentModel();
+
+	@SuppressWarnings("unchecked")
+	public JSONObject getChannleCount(JSONObject robj, String wbID, String rootName, String fatherID) {
+		JSONArray channelArray = JSONArray
+				.toJSONArray((String) appsProxy.proxyCall("/ContentGroup/getPrevColumn/s:" + wbID, null, null));
+
+		for (Object _obj : channelArray) {
+			// json = (JSONObject)_obj;
+
+		}
+		return robj;
+	}
+
+	// 线性jsonarray转树形jsonobjct
+	@SuppressWarnings("unchecked")
+	private JSONObject line2tree(JSONArray array, String mid, String fid) {
+		JSONObject json;
+		JSONObject rjson = new JSONObject();
+		for (Object _obj : array) {
+			json = (JSONObject) _obj;
+			if (json.get(fid).toString().isEmpty()) {
+				rjson.put(json.get(mid).toString(), null);
+			}
+		}
+		JSONObject njson;
+		for (Object rootID : rjson.keySet()) {
+			njson = new JSONObject();
+			for (Object _obj : array) {
+				json = (JSONObject) _obj;
+				if (json.get(fid).toString().equals(rootID)) {// 找到父ID为当前根目录的栏目
+
+				}
+			}
+		}
+		return rjson;
+	}
 
 	@SuppressWarnings("unchecked")
 	public JSONObject getAllCount(JSONObject robj, String rootID, String rootName, String fatherID) {
@@ -23,13 +54,10 @@ public class WsCount {
 		long allCnt = getCount(Allweb);
 		long argCnt = getAgreeCount(Allweb);
 		long disArg = getDisagreeCount(Allweb);
+		long chking = allCnt - argCnt - disArg;
 		nObj.put("id", rootID);
 		nObj.put("fatherid", fatherID);
 		nObj.put("name", rootName);
-		nObj.put("count", allCnt);
-		nObj.put("checked", argCnt);
-		nObj.put("uncheck", disArg);
-		nObj.put("checking", allCnt - argCnt - disArg);
 		String tree = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getChildrenweb/s:" + rootID, null, null);
 		if (!tree.equals("")) {
 			trees = tree.split(",");
@@ -44,9 +72,62 @@ public class WsCount {
 				getAllCount(newJSON, trees[i], webInfos.getString(trees[i]), rootID);
 			}
 		}
-		nObj.put("children", newJSON);
+		/**/
+		JSONArray jsonArray = new JSONArray();
+		JSONObject json;
+		for (Object obj : newJSON.keySet()) {
+			// 修正总量，设置排序
+			json = (JSONObject) newJSON.get(obj.toString());
+			allCnt += json.getLong("count");
+			argCnt += json.getLong("checked");
+			disArg += json.getLong("uncheck");
+			chking += json.getLong("checking");
+			jsonArray.add(json);
+		}
+		sortJson(jsonArray, 0, jsonArray.size() - 1, "count");
+		nObj.put("count", allCnt);
+		nObj.put("checked", argCnt);
+		nObj.put("uncheck", disArg);
+		nObj.put("checking", chking);
+
+		nObj.put("children", jsonArray);
+
 		robj.put(rootID, nObj);
 		return robj;
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sortJson(JSONArray array, int low, int hight, String key) {
+		JSONObject json;
+		int i, j;
+		long index;
+		if (low > hight) {
+			return;
+		}
+		i = low;
+		j = hight;
+		index = ((JSONObject) array.get(i)).getLong(key); // 用子表的第一个记录做基准
+		while (i < j) { // 从表的两端交替向中间扫描
+			while (i < j && ((JSONObject) array.get(j)).getLong(key) >= index)
+				j--;
+			if (i < j) {// 用比基准小的记录替换低位记录
+				json = (JSONObject) array.get(i++);
+				json.put(key, ((JSONObject) array.get(i)).getLong(key));
+				array.set(i++, json);
+			}
+			while (i < j && ((JSONObject) array.get(i)).getLong(key) < index)
+				i++;
+			if (i < j) { // 用比基准大的记录替换高位记录
+				json = (JSONObject) array.get(j--);
+				json.put(key, ((JSONObject) array.get(i)).getLong(key));
+				array.set(j--, json);
+			}
+		}
+		json = (JSONObject) array.get(i);
+		json.put(key, index);
+		array.set(i, json);
+		sortJson(array, low, i - 1, key); // 对低子表进行递归排序
+		sortJson(array, i + 1, hight, key); // 对高子表进行递归排序
 	}
 
 	private long getCount(String[] wid) {

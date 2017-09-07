@@ -14,6 +14,7 @@ import database.db;
 import json.JSONHelper;
 import model.ContentModel;
 import model.WsCount;
+import model.wsCounts;
 import nlogger.nlogger;
 import security.codec;
 import session.session;
@@ -145,6 +146,10 @@ public class Content {
 		return result;
 	}
 
+	public void AddArticle() {
+		
+	}
+	
 	private JSONObject remoNumberLong(JSONObject object) {
 		String temp;
 		String[] param = { "type", "attribute", "sort", "type", "isdelete", "isvisble", "state", "substate", "slevel",
@@ -1349,9 +1354,9 @@ public class Content {
 
 	public String total(String rootID) {
 		JSONObject json = new JSONObject();
-		JSONObject webInfo = JSONObject
-				.toJSON(appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID, null, null).toString());
-		json = new WsCount().getAllCount(json, rootID, webInfo.getString(rootID), "");
+		JSONObject webInfo = JSONObject.toJSON(appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID, null, null).toString());
+		json = new wsCounts().getAllCount(json, rootID, webInfo.getString(rootID), "");
+//		json = new WsCount().getAllCount(json, rootID, webInfo.getString(rootID), "");
 		return json.toJSONString();
 	}
 }

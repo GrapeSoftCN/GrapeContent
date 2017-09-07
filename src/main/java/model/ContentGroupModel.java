@@ -232,7 +232,7 @@ public class ContentGroupModel {
 			} else {
 				db.eq("wbid", wbid).mask("r,u,d");
 			}
-			array = db.dirty().asc("sort").page(idx, pageSize);
+			array = db.dirty().asc("_id").page(idx, pageSize);
 			totalSize = db.pageMax(pageSize);
 		} catch (Exception e) {
 			nlogger.logout(e);
