@@ -9,6 +9,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import apps.appsProxy;
+import cache.CacheHelper;
 import database.db;
 import json.JSONHelper;
 import model.ContentGroupModel;
@@ -35,7 +36,7 @@ public class ContentGroup {
 		defcol.put("fatherid", "0");
 		defcol.put("sort", 0);
 		defcol.put("isvisble", 0);
-		defcol.put("slevel", 0);
+		defcol.put("slevel", "0");
 		defcol.put("type", 0);
 		defcol.put("tempContent", "0");
 		defcol.put("tempList", "0");
@@ -138,13 +139,27 @@ public class ContentGroup {
 		return group.resultMessage(group.setsort(ogid, num), "顺序调整成功");
 	}
 
+	public static String getRWbid(String wbid) {
+		Object obj;
+		String key = "vID2rID_" + wbid;
+		CacheHelper cacheHelper = new CacheHelper();
+		String value = cacheHelper.get(key);
+		if (value == null) {
+			obj = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/"+wbid, null, null);
+			if( obj != null ){
+				value = obj.toString();
+				if (!value.equals("")) {
+					cacheHelper.setget(key, value,60* 1000);
+				}
+			}
+		}
+		return value;
+	}
+
 	/*-------------------前台---------------------*/
 	// 分页
 	public String GroupPage(String wbid, int idx, int pageSize) {
-		if (userInfo != null && userInfo.size() != 0) {
-			wbid = userInfo.get("currentWeb").toString();
-		}
-		return group.pages(wbid, idx, pageSize, null);
+		return group.pages(getRWbid(wbid), idx, pageSize, null);
 	}
 
 	// 条件分页
@@ -152,7 +167,7 @@ public class ContentGroup {
 		if (userInfo != null && userInfo.size() != 0) {
 			wbid = userInfo.get("currentWeb").toString();
 		}
-		return group.pages(wbid, idx, pageSize, GroupInfo);
+		return group.pages(getRWbid(wbid), idx, pageSize, GroupInfo);
 	}
 
 	/*-------------------后台------*/
@@ -412,7 +427,7 @@ public class ContentGroup {
 			array = db.select();
 		}
 		JSONObject rsObject = JoinObj(value, array);
-		return (rsObject != null && rsObject.size() != 0) ? rsObject.toString() : null ;
+		return (rsObject != null && rsObject.size() != 0) ? rsObject.toString() : null;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -434,6 +449,56 @@ public class ContentGroup {
 			}
 		}
 		return rsObject;
+	}
 
+	public String isPublic(String ogid) {
+		db db = group.getdb();
+		String slevel = "0", temp;
+		JSONObject object = db.eq("_id", ogid).find();
+		if (object != null && object.size() != 0) {
+			temp = object.getString("slevel");
+			if (temp.contains("$numberLong")) {
+				temp = JSONObject.toJSON(temp).getString("$numberLong");
+			}
+			slevel = temp;
+		}
+		return slevel;
+	}
+
+	/**
+	 * 批量设置内容组是否公开
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file ContentGroup.java
+	 * 
+	 * @param Slevel
+	 *            {"slevel":0}公开，{"slevel":1}非公开
+	 * @return
+	 *
+	 */
+	public String SetSelvel(String Slevel) {
+		String result = group.resultMessage(99);
+		String[] value = null;
+		JSONObject object = JSONObject.toJSON(Slevel);
+		long code;
+		if (userInfo != null && userInfo.size() != 0) {
+			String currentId = userInfo.getString("currentWeb"); // 当前站点id
+			// 获取所有下级站点
+			String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + currentId, null, null).toString();
+			if (!temp.equals("")) {
+				value = temp.split(",");
+			}
+			if (value != null && object != null && object.size() != 0) {
+				db db = group.getdb();
+				db.or();
+				for (String string : value) {
+					db.eq("wbid", string);
+				}
+				code = db.data(Slevel).updateAll();
+				result = code > 0 ? group.resultMessage(0, "设置栏目公开状态成功") : result;
+			}
+		}
+		return result;
 	}
 }

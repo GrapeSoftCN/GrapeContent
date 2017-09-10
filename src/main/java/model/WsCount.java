@@ -8,7 +8,9 @@ import org.json.simple.JSONObject;
 
 import apps.appsProxy;
 import database.db;
+import nlogger.nlogger;
 public class WsCount {
+	private JSONObject object = new JSONObject();
 	private ContentModel content = new ContentModel();
 	
 	@SuppressWarnings("unchecked")
@@ -62,6 +64,8 @@ public class WsCount {
 		if (!tree.equals("")) {
 			trees = tree.split(",");
 		}
+		
+		//webInfoData = JSONObject.toJSON((String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + tree, null, null));
 		JSONObject newJSON = new JSONObject();
 		if (trees != null) {
 			JSONObject webInfos = JSONObject.toJSON((String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + tree, null, null));
@@ -79,17 +83,18 @@ public class WsCount {
 			//修正总量，设置排序
 			try{
 				json = (JSONObject) newJSON.get(obj) ;
+				
 				allCnt += json.getLong("count");
 				argCnt += json.getLong("checked");
 				disArg += json.getLong("uncheck");
 				chking += json.getLong("checking");
+				
 				jsonArray.add(json);
 			}
 			catch(Exception e){
 				e.getMessage();
 			}
 		}
-			
 		sortJson(jsonArray, 0 , jsonArray.size() - 1, "count");
 		nObj.put("count", allCnt);
 		nObj.put("checked", argCnt);
@@ -105,18 +110,23 @@ public class WsCount {
 	@SuppressWarnings("unchecked")
 	public static int partition(JSONArray array,int lo,int hi ,String keyName){
         //固定的切分方式
-        long key= ((JSONObject)array.get(lo)).getLong(keyName);
+		JSONObject json = (JSONObject)array.get(lo);
+        long key= json.getLong(keyName);
         while(lo<hi){
-            while(((JSONObject)array.get(hi)).getLong(keyName)>=key&&hi>lo){//从后半部分向前扫描
+            while(((JSONObject)array.get(hi)).getLong(keyName)<=key&&hi>lo){//从后半部分向前扫描
                 hi--;
             }
-            ((JSONObject)array.get(lo)).put(keyName, ((JSONObject)array.get(hi)).getLong(keyName));
-            while(((JSONObject)array.get(lo)).getLong(keyName)<=key&&hi>lo){//从前半部分向后扫描
+            //json = ((JSONObject)array.get(lo));
+            array.set(lo, array.get(hi));
+            //((JSONObject)array.get(lo)).put(keyName, ((JSONObject)array.get(hi)).getLong(keyName));
+            while(((JSONObject)array.get(lo)).getLong(keyName)>=key&&hi>lo){//从前半部分向后扫描
                 lo++;
             }
-            ((JSONObject)array.get(hi)).put(keyName, ((JSONObject)array.get(lo)).getLong(keyName));
+            //((JSONObject)array.get(hi)).put(keyName, ((JSONObject)array.get(lo)).getLong(keyName));
+            array.set(hi, array.get(lo));
         }
-        ((JSONObject)array.get(hi)).put(keyName, key);
+        //((JSONObject)array.get(hi)).put(keyName, key);
+        array.set(hi,json);
         return hi;
     }
     

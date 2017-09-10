@@ -8,6 +8,7 @@ import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import JGrapeSystem.jGrapeFW_Message;
 import apps.appsProxy;
 import cache.CacheHelper;
 import database.DBHelper;
@@ -29,7 +30,7 @@ public class Content {
 	private session se;
 	private JSONObject UserInfo = new JSONObject();
 	private String sid = null;
-//	private String currentWid = "";
+	private String currentWid = "";
 
 	private db getContentCache() {
 		DBHelper ContentCache = new DBHelper("mongodb", "objectListCache");
@@ -39,11 +40,11 @@ public class Content {
 	public Content() {
 		se = new session();
 		sid = session.getSID();
-		if (sid != null) {
-			UserInfo = se.getSession();
-//			if (UserInfo != null && UserInfo.size() != 0) {
-//				currentWid = UserInfo.getString("currentWeb");
-//			}
+		if (sid != null && !sid.equals("")) {
+			UserInfo = se.getSession(sid);
+			if (UserInfo != null && UserInfo.size() != 0) {
+				currentWid = UserInfo.getString("currentWeb");
+			}
 		}
 		defmap.put("subName", null);
 		defmap.put("image", "");
@@ -148,10 +149,6 @@ public class Content {
 			}
 		}
 		return result;
-	}
-
-	public void AddArticle() {
-
 	}
 
 	private JSONObject remoNumberLong(JSONObject object) {
@@ -430,8 +427,8 @@ public class Content {
 	 * 
 	 * @return
 	 */
-	public String FindNewArc(String wbid) {
-		return content.findbywbid(wbid);
+	public String FindNewArc(String wbid,int idx,int pageSize) {
+		return content.findbywbid(ContentGroup.getRWbid(wbid),idx,pageSize);
 	}
 
 	/**
@@ -765,7 +762,7 @@ public class Content {
 		String[] value = null;
 		if (wbid != null && !wbid.equals("")) {
 			// 获取所有下级站点
-			wbids = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getChildwebs/" + wbid, null, null).toString();
+			wbids = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getChildwebs/" + ContentGroup.getRWbid(wbid), null, null).toString();
 			if (wbids != null && !wbids.equals("")) {
 				value = wbids.split(",");
 			}
@@ -790,7 +787,7 @@ public class Content {
 		if (!wbid.equals("") && array != null && array.size() != 0) {
 			int l = array.size();
 			// 显示默认缩略图
-			String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + wbid, null, null).toString();
+			String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + ContentGroup.getRWbid(wbid), null, null).toString();
 			// String temp =
 			// appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" +
 			// wbid).toString();
@@ -909,7 +906,7 @@ public class Content {
 	 * @return
 	 */
 	public String ShowByGroupId(String wbid, String ogid) {
-		return content.resultMessage(content.findByGroupID(wbid, ogid));
+		return content.resultMessage(content.findByGroupID(ContentGroup.getRWbid(wbid), ogid));
 	}
 
 	/*----------前台页面图片显示-------------*/
@@ -920,7 +917,7 @@ public class Content {
 	 * @return
 	 */
 	public String ShowPicByGroupId(String wbid, String ogid) {
-		return content.resultMessage(content.findPicByGroupID(wbid, ogid));
+		return content.resultMessage(content.findPicByGroupID(ContentGroup.getRWbid(wbid), ogid));
 	}
 
 	/**
@@ -943,9 +940,25 @@ public class Content {
 	 * @return
 	 */
 	public String PublishArticle(String ArticleInfo) {
-		JSONObject object = JSONHelper.string2json(ArticleInfo);
-		object = content.AddMap(defmap, object);
-		return content.insert(object);
+		 JSONObject object = JSONHelper.string2json(ArticleInfo);
+		 object = content.AddMap(defmap, object);
+		 return content.insert(object);
+		 
+//		String result = content.resultMessage(99);
+//		if (currentWid.equals("")) {
+//			return result;
+//		}
+//		String info = new Article().SetArticleInfo(ArticleInfo, currentWid);
+//		JSONObject tempobj = JSONObject.toJSON(AddAllArticle(info));
+//		String message = "";
+//		if (tempobj != null && tempobj.size() !=0) {
+//			message = (JSONObject.toJSON(tempobj.getString("message"))).getString("records");
+//			JSONArray ArticlesArray = JSONArray.toJSONArray(message);
+//			if (ArticlesArray != null && ArticlesArray.size() > 0) {
+//				result = content.resultMessage((JSONObject)ArticlesArray.get(0));
+//			}
+//		}
+//		return result;
 	}
 
 	public JSONObject getwbid(String wbid, JSONObject object) {
@@ -1025,6 +1038,10 @@ public class Content {
 
 	// 审核
 	public String review(String oid, String reviewData) {
+		int role = content.getRole();
+		if (role == 3) {
+			return content.resultMessage(10);
+		}
 		int code = 99;
 		String key;
 		JSONObject object = JSONObject.toJSON(reviewData);
@@ -1253,16 +1270,19 @@ public class Content {
 		return content.resultMessage(code, "追加文档成功");
 	}
 
-	public String total(String rootID) {
+	public String totalArticle(String rootID) {
 		CacheHelper ch = new CacheHelper();
 		String rString = ch.get("total_COunt_" + rootID);
-		if( rString == null || rString.equals("") ){
+		if (rString == null || rString.equals("")) {
 			JSONObject json = new JSONObject();
-//			JSONObject webInfo = JSONObject.toJSON((String)(String)execRequest._run("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID));
-			JSONObject webInfo = JSONObject.toJSON(appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID, null,null).toString());
-			json = new WsCount().getAllCount(json, rootID , webInfo.getString(rootID) , "");
+			// JSONObject webInfo =
+			// JSONObject.toJSON((String)(String)execRequest._run("/GrapeWebInfo/WebInfo/getWebInfo/s:"
+			// + rootID));
+			JSONObject webInfo = JSONObject
+					.toJSON(appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID, null, null).toString());
+			json = new WsCount().getAllCount(json, rootID, webInfo.getString(rootID), "");
 			rString = json.toJSONString();
-			ch.setget("total_COunt_" + rootID, rString);
+			ch.setget("total_COunt_" + rootID, rString,86400);
 		}
 		return rString;
 	}

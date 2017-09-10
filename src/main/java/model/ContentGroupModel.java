@@ -231,20 +231,19 @@ public class ContentGroupModel {
 		int rolePlv = getRoleSign();
 		db db = bind();
 		try {
-			db.eq("wbid", wbid).mask("r,u,d");
+			if (wbid!=null && !wbid.equals("")) {
+				db.eq("wbid", wbid).mask("r,u,d");
+			}
 			if (CondObject != null && CondObject.size() != 0) {
 				for (Object obj : CondObject.keySet()) {
 					key = obj.toString();
 					db.eq(key, CondObject.get(key));
 				}
 			}
-			if (rolePlv == 2 || rolePlv == 1 || rolePlv == 0) {
-				db.eq("slevel", 0);
-			}
 			if (rolePlv == 7) {
 				db.eq("editor", currentId);
 			}
-			array = db.dirty().asc("_id").page(idx, pageSize);
+			array = db.dirty().asc("sort").asc("_id").page(idx, pageSize);
 			totalSize = db.pageMax(pageSize);
 		} catch (Exception e) {
 			nlogger.logout(e);
@@ -610,7 +609,7 @@ public class ContentGroupModel {
 	 */
 	public int getRoleSign() {
 		int roleSign = 0; // 游客
-		if (sid != null) {
+		if (sid != null && !sid.equals("")) {
 			try {
 				privilige privil = new privilige(sid);
 				int roleplv = privil.getRolePV(appid);

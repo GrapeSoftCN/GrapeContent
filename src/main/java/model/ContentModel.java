@@ -12,6 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.bson.types.ObjectId;
+import org.ietf.jgss.Oid;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.jsoup.Jsoup;
@@ -466,12 +467,6 @@ public class ContentModel {
 		long total = 0, totalSize = 0;
 		JSONArray array = new JSONArray();
 		db db = getPageDB(wbid, content);
-		// if (content != null) {
-		// // 判断该栏目是否为公开栏目
-		// if (!IsPublic(ogid, wbid)) {
-		// return resultMessage(7);
-		// }
-		// }
 		array = db.dirty().desc("time").field("_id,mainName,time,wbid,ogid,image").page(idx, pageSize);
 		array = setTemp(array, connId);
 		totalSize = db.dirty().pageMax(pageSize);
@@ -479,7 +474,7 @@ public class ContentModel {
 		db.clear();
 		return PageShow(getImgs(dencode(array)), total, totalSize, idx, pageSize);
 	}
-
+	
 	private db getPageDB(String wbid, String content) {
 		String key;
 		String value;
@@ -808,28 +803,67 @@ public class ContentModel {
 		return obj;
 	}
 
+	/**
+	 * 当前栏目为公开栏目，直接显示数据，非公开栏目：若登录用户有权查看，则直接显示数据，否则提示需要登录
+	 * @project	GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param id
+	 * @return
+	 *
+	 */
 	public String find(String id) {
-		long slevel = 0; // 文章密级 0表示公开
+		String result = resultMessage(99);
+		// 获取当前数据
+		// JSONObject obj = db.asc("time").eq("slevel", 0).eq("_id", id).find();
+		db db = bind();
+		JSONObject obj = db.asc("time").eq("_id", id).find();
+		int code = isShow(obj);
+		switch (code) {
+		case 0:
+			result = getSingleArticle(obj, id);
+			break;
+		case 1:
+			result = resultMessage(9);
+			break;
+		case 2:
+			result = resultMessage(7);
+			break;
+		}
+		return result;
+	}
+
+	/**
+	 * 获取文章上下篇信息
+	 * @project	GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param obj
+	 * @param id
+	 * @return
+	 *
+	 */
+	private String getSingleArticle(JSONObject obj, String id) {
 		String wbid;
 		String ogid;
 		JSONObject preobj;
 		JSONObject nextobj;
 		db db = bind();
-		// 获取当前数据
-		// JSONObject obj = db.asc("time").eq("slevel", 0).eq("_id", id).find();
-		JSONObject obj = db.asc("time").eq("_id", id).find();
 		// 从当前数据获取wbid,ogid
 		if (obj != null && obj.size() != 0) {
 			wbid = obj.getString("wbid");
 			ogid = obj.getString("ogid");
-			String slev = obj.getString("slevel");
-			slevel = slev.contains("$numberLong") ? Long.parseLong(JSONObject.toJSON(slev).getString("$numberLong"))
-					: Long.parseLong(slev);
-			if (slevel != 0) {
-				if (!IsRead(wbid)) {
-					return resultMessage(7);
-				}
-			}
+			// String slev = obj.getString("slevel");
+			// slevel = slev.contains("$numberLong") ?
+			// Long.parseLong(JSONObject.toJSON(slev).getString("$numberLong"))
+			// : Long.parseLong(slev);
+			// if (slevel != 0) {
+			// if (!IsRead(wbid)) {
+			// return resultMessage(7);
+			// }
+			// }
 			// 获取上一篇
 			preobj = db.asc("_id").eq("wbid", wbid).eq("ogid", ogid).eq("slevel", 0).gt("_id", id).field("_id,mainName")
 					.limit(1).find();
@@ -853,8 +887,57 @@ public class ContentModel {
 		return resultMessage(getDefaultImage(obj));
 	}
 
+	/**
+	 * 判断该文章是否可以被查看
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param ogid
+	 * @return
+	 *
+	 */
+	private int isShow(JSONObject object) {
+		int code = 0;
+		String currentId = "", wbid = "";
+		if (object != null && object.size() != 0) {
+			String ogid = object.getString("ogid");
+			wbid = object.getString("wbid");
+			String temp = appsProxy.proxyCall("/GrapeContent/ContentGroup/isPublic/" + ogid, null, null).toString();
+			if (!temp.equals("0")) {
+				if (UserInfo != null && UserInfo.size() != 0) {
+					currentId = getCurrentId();
+					if (!currentId.contains(wbid)) {
+						code = 1; // 无权查看
+					}
+				} else {
+					code = 2; // 请登录查看
+				}
+			}
+		}
+		return code;
+	}
+
+	private String getCurrentId() {
+		JSONArray array;
+		JSONObject object;
+		String Currentwbid = "", wbid;
+		if (UserInfo != null && UserInfo.size() != 0) {
+			array = JSONArray.toJSONArray(UserInfo.getString("webinfo"));
+			if (array != null && array.size() != 0) {
+				for (Object object2 : array) {
+					object = (JSONObject) object2;
+					wbid = object.getString("wbid");
+					Currentwbid += wbid + ",";
+				}
+			}
+		}
+		return StringHelper.fixString(Currentwbid, ',');
+	}
+
 	private JSONObject removeNum(JSONObject oJsonObject) {
-		String temp ="0";
+		String temp = "0";
 		if (oJsonObject != null && oJsonObject.size() != 0) {
 			if (oJsonObject.containsKey("clickcount")) {
 				temp = oJsonObject.getString("clickcount");
@@ -1098,9 +1181,13 @@ public class ContentModel {
 		return object;
 	}
 
-	public String findbywbid(String wbid) {
-		JSONArray array = bind().eq("wbid", wbid).eq("state", 2).desc("time").desc("_id").limit(20).select();
-		return resultMessage(join(getImgs(array)));
+	public String findbywbid(String wbid,int idx,int pageSize) {
+		long total=0,totalSize=0;
+		db db = bind().eq("wbid", wbid).eq("state", 2).desc("time").desc("_id");
+		JSONArray array = db.dirty().page(idx, pageSize);
+		total = db.dirty().count();
+		totalSize = db.pageMax(pageSize);
+		return PageShow(join(getImgs(array)), total, totalSize, idx, pageSize);
 	}
 
 	// 获取某个栏目下的最新的文章
@@ -1843,7 +1930,7 @@ public class ContentModel {
 
 	public int getRole() {
 		int roleSign = 0; // 游客
-		if (sid != null) {
+		if (sid != null && !sid.equals("") ) {
 			try {
 				privilige privil = new privilige(sid);
 				int roleplv = privil.getRolePV(appid);
@@ -2058,10 +2145,16 @@ public class ContentModel {
 			message = "超过限制字数";
 			break;
 		case 7:
-			message = "您没有权限查看该内容";
+			message = "请先登录";
 			break;
 		case 8:
 			message = "没有操作权限";
+			break;
+		case 9:
+			message = "该文章暂未公开，无权查看";
+			break;
+		case 10:
+			message = "您暂时没有审核权限";
 			break;
 		default:
 			message = "其他异常";
