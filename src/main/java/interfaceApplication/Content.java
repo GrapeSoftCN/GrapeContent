@@ -17,6 +17,7 @@ import json.JSONHelper;
 import model.ContentModel;
 import model.WsCount;
 import nlogger.nlogger;
+import rpc.execRequest;
 import security.codec;
 import session.session;
 import string.StringHelper;
@@ -427,8 +428,8 @@ public class Content {
 	 * 
 	 * @return
 	 */
-	public String FindNewArc(String wbid,int idx,int pageSize) {
-		return content.findbywbid(ContentGroup.getRWbid(wbid),idx,pageSize);
+	public String FindNewArc(String wbid, int idx, int pageSize) {
+		return content.findbywbid(ContentGroup.getRWbid(wbid), idx, pageSize);
 	}
 
 	/**
@@ -762,7 +763,10 @@ public class Content {
 		String[] value = null;
 		if (wbid != null && !wbid.equals("")) {
 			// 获取所有下级站点
-			wbids = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getChildwebs/" + ContentGroup.getRWbid(wbid), null, null).toString();
+//			wbids = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getChildwebs/" + ContentGroup.getRWbid(wbid), null, null)
+//					.toString();
+			wbids = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + ContentGroup.getRWbid(wbid), null, null)
+					.toString();
 			if (wbids != null && !wbids.equals("")) {
 				value = wbids.split(",");
 			}
@@ -787,7 +791,8 @@ public class Content {
 		if (!wbid.equals("") && array != null && array.size() != 0) {
 			int l = array.size();
 			// 显示默认缩略图
-			String temp = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + ContentGroup.getRWbid(wbid), null, null).toString();
+			String temp = appsProxy
+					.proxyCall("/GrapeWebInfo/WebInfo/getImage/" + ContentGroup.getRWbid(wbid), null, null).toString();
 			// String temp =
 			// appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getImage/" +
 			// wbid).toString();
@@ -940,25 +945,26 @@ public class Content {
 	 * @return
 	 */
 	public String PublishArticle(String ArticleInfo) {
-		 JSONObject object = JSONHelper.string2json(ArticleInfo);
-		 object = content.AddMap(defmap, object);
-		 return content.insert(object);
-		 
-//		String result = content.resultMessage(99);
-//		if (currentWid.equals("")) {
-//			return result;
-//		}
-//		String info = new Article().SetArticleInfo(ArticleInfo, currentWid);
-//		JSONObject tempobj = JSONObject.toJSON(AddAllArticle(info));
-//		String message = "";
-//		if (tempobj != null && tempobj.size() !=0) {
-//			message = (JSONObject.toJSON(tempobj.getString("message"))).getString("records");
-//			JSONArray ArticlesArray = JSONArray.toJSONArray(message);
-//			if (ArticlesArray != null && ArticlesArray.size() > 0) {
-//				result = content.resultMessage((JSONObject)ArticlesArray.get(0));
-//			}
-//		}
-//		return result;
+		JSONObject object = JSONHelper.string2json(ArticleInfo);
+		object = content.AddMap(defmap, object);
+		return content.insert(object);
+
+		// String result = content.resultMessage(99);
+		// if (currentWid.equals("")) {
+		// return result;
+		// }
+		// String info = new Article().SetArticleInfo(ArticleInfo, currentWid);
+		// JSONObject tempobj = JSONObject.toJSON(AddAllArticle(info));
+		// String message = "";
+		// if (tempobj != null && tempobj.size() !=0) {
+		// message =
+		// (JSONObject.toJSON(tempobj.getString("message"))).getString("records");
+		// JSONArray ArticlesArray = JSONArray.toJSONArray(message);
+		// if (ArticlesArray != null && ArticlesArray.size() > 0) {
+		// result = content.resultMessage((JSONObject)ArticlesArray.get(0));
+		// }
+		// }
+		// return result;
 	}
 
 	public JSONObject getwbid(String wbid, JSONObject object) {
@@ -1036,10 +1042,26 @@ public class Content {
 		return content.resultMessage(code, "设置密级成功");
 	}
 
-	// 审核
+	/**
+	 * 审核文章
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @param oid
+	 * @param reviewData
+	 * @return
+	 *
+	 */
 	public String review(String oid, String reviewData) {
 		int role = content.getRole();
-		if (role == 3) {
+		if (role == 6) {
+			return content.resultMessage(10);
+		}
+		// 判断当前用户是否拥有审核权
+		int isreview = isReview();
+		if (isreview == 0) {
 			return content.resultMessage(10);
 		}
 		int code = 99;
@@ -1055,6 +1077,28 @@ public class Content {
 		}
 		code = content.bind().eq("_id", oid).data(object).update() != null ? 0 : 99;
 		return content.resultMessage(code, "文章审核成功");
+	}
+
+	/**
+	 * 判断当前用户是否拥有审核权
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file Content.java
+	 * 
+	 * @return 返回值为1，表示拥有审核权，返回值为0 ，表示没有审核权
+	 *
+	 */
+	private int isReview() {
+		int code = 0;
+		String isreview = "0";
+		if (UserInfo != null && UserInfo.size() != 0) {
+			if (UserInfo.containsKey("isreview")) {
+				isreview = UserInfo.getString("isreview");
+			}
+		}
+		code = isreview.equals("0") ? 0 : 1;
+		return code;
 	}
 
 	public String BatchDelete(String oid) {
@@ -1272,17 +1316,16 @@ public class Content {
 
 	public String totalArticle(String rootID) {
 		CacheHelper ch = new CacheHelper();
+		ch.delete("total_COunt_" + rootID);
 		String rString = ch.get("total_COunt_" + rootID);
+		rootID = ContentGroup.getRWbid(rootID);
 		if (rString == null || rString.equals("")) {
 			JSONObject json = new JSONObject();
-			// JSONObject webInfo =
-			// JSONObject.toJSON((String)(String)execRequest._run("/GrapeWebInfo/WebInfo/getWebInfo/s:"
-			// + rootID));
 			JSONObject webInfo = JSONObject
 					.toJSON(appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebInfo/s:" + rootID, null, null).toString());
 			json = new WsCount().getAllCount(json, rootID, webInfo.getString(rootID), "");
 			rString = json.toJSONString();
-			ch.setget("total_COunt_" + rootID, rString,86400);
+			ch.setget("total_COunt_" + rootID, rString, 86400);
 		}
 		return rString;
 	}

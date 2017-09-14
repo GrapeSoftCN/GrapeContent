@@ -28,6 +28,7 @@ import check.formHelper.formdef;
 import database.DBHelper;
 import database.db;
 import database.userDBHelper;
+import interfaceApplication.ContentGroup;
 import json.JSONHelper;
 import nlogger.nlogger;
 import rpc.execRequest;
@@ -474,14 +475,16 @@ public class ContentModel {
 		db.clear();
 		return PageShow(getImgs(dencode(array)), total, totalSize, idx, pageSize);
 	}
-	
+
 	private db getPageDB(String wbid, String content) {
 		String key;
 		String value;
 		JSONObject object = JSONObject.toJSON(content);
 		db db = bind();
 		db.eq("slevel", 0);
-		db.eq("wbid", wbid);
+		if (wbid != null && !wbid.equals("") && !wbid.equals("null")) {
+			db.eq("wbid", wbid);
+		}
 		if (object != null && object.size() != 0) {
 			for (Object object2 : object.keySet()) {
 				key = (String) object2;
@@ -805,7 +808,8 @@ public class ContentModel {
 
 	/**
 	 * 当前栏目为公开栏目，直接显示数据，非公开栏目：若登录用户有权查看，则直接显示数据，否则提示需要登录
-	 * @project	GrapeContent
+	 * 
+	 * @project GrapeContent
 	 * @package model
 	 * @file ContentModel.java
 	 * 
@@ -836,7 +840,8 @@ public class ContentModel {
 
 	/**
 	 * 获取文章上下篇信息
-	 * @project	GrapeContent
+	 * 
+	 * @project GrapeContent
 	 * @package model
 	 * @file ContentModel.java
 	 * 
@@ -908,6 +913,8 @@ public class ContentModel {
 			if (!temp.equals("0")) {
 				if (UserInfo != null && UserInfo.size() != 0) {
 					currentId = getCurrentId();
+					// 获取当前站点的全部下级站点
+					currentId = getCWbid(currentId);
 					if (!currentId.contains(wbid)) {
 						code = 1; // 无权查看
 					}
@@ -917,6 +924,30 @@ public class ContentModel {
 			}
 		}
 		return code;
+	}
+
+	/**
+	 * 获取当前站点的下级站点
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param currentId
+	 * @return
+	 *
+	 */
+	private String getCWbid(String currentId) {
+		String[] value;
+		String currentIds = currentId;
+		if (currentId.length() > 0) {
+			value = currentId.split(",");
+			for (String string : value) {
+				currentIds += (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + string, null, null)
+						+ ",";
+			}
+		}
+		return StringHelper.fixString(currentIds, ',');
 	}
 
 	private String getCurrentId() {
@@ -1181,8 +1212,8 @@ public class ContentModel {
 		return object;
 	}
 
-	public String findbywbid(String wbid,int idx,int pageSize) {
-		long total=0,totalSize=0;
+	public String findbywbid(String wbid, int idx, int pageSize) {
+		long total = 0, totalSize = 0;
 		db db = bind().eq("wbid", wbid).eq("state", 2).desc("time").desc("_id");
 		JSONArray array = db.dirty().page(idx, pageSize);
 		total = db.dirty().count();
@@ -1260,7 +1291,7 @@ public class ContentModel {
 	}
 
 	/**
-	 * 后台页面搜索
+	 * 后台页面搜索，返回结果包含当前栏目的子栏目的数据
 	 * 
 	 * @project GrapeContent
 	 * @package model
@@ -1275,11 +1306,26 @@ public class ContentModel {
 	 */
 	public String searchBack(String wbid, int idx, int pageSize, String condString) {
 		long total = 0, totalSize = 0;
+		String ogid;
+		String[] value = null;
 		JSONArray array = null;
 		JSONArray condArray = JSONArray.toJSONArray(condString);
+		JSONObject tempobj = SetCondString(condArray);
 		if (wbid != null && !wbid.equals("")) {
 			db db = bind();
-			db.eq("wbid", wbid);
+			if (tempobj != null && tempobj.size() != 0) {
+				ogid = tempobj.getString("ogid");
+				if (!ogid.equals("")) {
+					value = ogid.split(",");
+				}
+			}
+			if (value != null) {
+				db.or();
+				for (String ogids : value) {
+					db.eq("ogid", ogids);
+				}
+			}
+			db.and().eq("wbid", wbid);
 			db.where(condArray);
 			array = db.dirty().page(idx, pageSize);
 			totalSize = db.dirty().pageMax(pageSize);
@@ -1287,6 +1333,38 @@ public class ContentModel {
 			db.clear();
 		}
 		return PageShow(array, total, totalSize, idx, pageSize);
+	}
+
+	/**
+	 * 重新封装搜索条件
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentModel.java
+	 * 
+	 * @param CondArray
+	 * @return
+	 *
+	 */
+	private JSONObject SetCondString(JSONArray CondArray) {
+		JSONObject object, tempobj = new JSONObject();
+		String key, value, ogid = "";
+		if (CondArray != null && CondArray.size() != 0) {
+			for (Object obj : CondArray) {
+				object = (JSONObject) obj;
+				key = object.getString("field");
+				value = object.getString("value");
+				if (key.equals("ogid")) {
+					// 获取所有下级栏目
+					ogid = new ContentGroup().getAllColumn(value);
+					CondArray.remove(object);
+				}
+			}
+		}
+		tempobj.put("ogid", ogid);
+		tempobj.put("CondArray", CondArray);
+		return tempobj;
+
 	}
 
 	private db getConddb(String condString, String wbid) {
@@ -1930,7 +2008,7 @@ public class ContentModel {
 
 	public int getRole() {
 		int roleSign = 0; // 游客
-		if (sid != null && !sid.equals("") ) {
+		if (sid != null && !sid.equals("")) {
 			try {
 				privilige privil = new privilige(sid);
 				int roleplv = privil.getRolePV(appid);
@@ -2151,10 +2229,10 @@ public class ContentModel {
 			message = "没有操作权限";
 			break;
 		case 9:
-			message = "该文章暂未公开，无权查看";
+			message = "您不属于该单位，无权查看该单位信息";
 			break;
 		case 10:
-			message = "您暂时没有审核权限";
+			message = "您暂时还没有审核权限";
 			break;
 		default:
 			message = "其他异常";

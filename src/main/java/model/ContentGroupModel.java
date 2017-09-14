@@ -13,12 +13,15 @@ import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import com.mysql.fabric.xmlrpc.base.Value;
+
 import JGrapeSystem.jGrapeFW_Message;
 import apps.appsProxy;
 import authority.privilige;
 import check.formHelper;
 import database.db;
 import database.userDBHelper;
+import interfaceApplication.ContentGroup;
 import json.JSONHelper;
 import nlogger.nlogger;
 import rpc.execRequest;
@@ -44,7 +47,7 @@ public class ContentGroupModel {
 		if (sid != null) {
 			userInfo = se.getSession(sid);
 			if (userInfo != null && userInfo.size() != 0) {
-				currentId = ((JSONObject) userInfo.get("_id") ).getString("$oid");
+				currentId = ((JSONObject) userInfo.get("_id")).getString("$oid");
 			}
 		}
 	}
@@ -98,7 +101,7 @@ public class ContentGroupModel {
 	 * @param groupinfo
 	 * @return 1 内容组名称超过指定长度 2必填项没有填 3 表示该内容组已存在
 	 * 
-	 */
+	 *//*
 	public String AddGroup(JSONObject groupinfo) {
 		int role = getRoleSign();
 		if (role == 6) {
@@ -130,27 +133,350 @@ public class ContentGroupModel {
 			object = null;
 		}
 		return resultMessage(object);
-	}
+	}*/
 
-	public int UpdateGroup(String ogid, JSONObject groupinfo) {
-		int role = getRoleSign();
-		if (role == 6) {
-			return 4;
-		}
-		int i = 99;
-		try {
-			if (groupinfo.containsKey("name")) {
-				String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
-				if (!check_name(name)) {
-					return 1;
+	public String AddGroup(JSONObject groupInfo) {
+		String result = resultMessage(99);
+		String wbid = "";
+		String contant = "0";
+		if (groupInfo != null && groupInfo.size() != 0) {
+			if (groupInfo.containsKey("Contant")) {
+				contant = groupInfo.getString("Contant");
+			}
+			if (userInfo != null && userInfo.size() != 0) {
+				wbid = userInfo.getString("currentWeb");
+			} else {
+				if (groupInfo.containsKey("wbid")) {
+					wbid = groupInfo.getString("wbid");
 				}
 			}
-			i = bind().eq("_id", new ObjectId(ogid)).data(groupinfo).update() != null ? 0 : 99;
+		}
+		switch (contant) {
+		case "0": // 不影响下级网站
+			result = Add(groupInfo);
+			break;
+		case "1": // 下级网站同时新增栏目
+			result = AddAllColumn(groupInfo,wbid);
+			break;
+		}
+		if (!result.contains("errorcode")) {
+			db db = getdb();
+			JSONObject object = db.eq("wbid", wbid).eq("name", groupInfo.getString("name")).find();
+			result = object.toJSONString();
+		}
+		return result;
+	}
+
+	/**
+	 * 新增操作
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentGroupModel.java
+	 * 
+	 * @param groupinfo
+	 * @return
+	 *
+	 */
+	private String Add(JSONObject groupinfo) {
+		if (!getForm().checkRuleEx(groupinfo)) {
+			return resultMessage(2, "");
+		}
+		String name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过300个字数
+		if (!check_name(name)) {
+			return resultMessage(1, "");
+		}
+		String wbid = groupinfo.get("wbid").toString();
+		String type = groupinfo.get("type").toString();
+		String Fatherid = groupinfo.get("fatherid").toString();
+		if (findBywbid(name, type, wbid, Fatherid) != null) {
+			return resultMessage(3, "");
+		}
+		String info = bind().data(groupinfo).insertOnce().toString();
+		return info;
+	}
+
+	private String AddAllColumn(JSONObject groupinfo,String wbid) {
+		String result = resultMessage(99);
+		String[] value;
+		if (groupinfo != null && groupinfo.size() != 0) {
+			if (!wbid.equals("")) {
+				wbid = ContentGroup.getRWbid(wbid);
+				value = getWeb(wbid);
+				result = AddAll(groupinfo, value);
+			}
+		}
+		return result;
+	}
+
+	@SuppressWarnings("unchecked")
+	private String AddAll(JSONObject groupinfo, String[] wbid) {
+		String fatherid, groupName,result = resultMessage(99);
+		db db = getdb();
+		if (groupinfo.containsKey("fatherid")) {
+			fatherid = groupinfo.getString("fatherid");
+			if (fatherid.equals("") || fatherid.equals("0")) { // 添加一级栏目
+				if (wbid != null) {
+					for (String id : wbid) {
+						groupinfo.put("wbid", id);
+						result = Add(groupinfo); // 新增操作
+					}
+				}
+			} else {
+				// 根据fatherid获取栏目名称
+				JSONObject temp = find(fatherid);
+				if (temp != null && temp.size() != 0) {
+					groupName = temp.getString("name");
+					db.or();
+					for (String string : wbid) {
+						db.eq("wbid", string);
+					}
+					db.and().eq("name", groupName);
+					JSONArray ColumnArray = db.select();
+					JSONObject tempobj = getOgid(ColumnArray);
+					if (tempobj != null && tempobj.size() != 0) {
+						for (String string : wbid) {
+							groupinfo.put("wbid", string);
+							groupinfo.put("ogid", tempobj.getString(string));
+							result = Add(groupinfo);
+						}
+					}
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * 重整栏目id和网站id
+	 * @project	GrapeContent
+	 * @package model
+	 * @file ContentGroupModel.java
+	 * 
+	 * @param ColumnArray
+	 * @return  {wbid:ogid,wbid:ogid...}
+	 *
+	 */
+	@SuppressWarnings("unchecked")
+	private JSONObject getOgid(JSONArray ColumnArray) {
+		JSONObject object, rObject = new JSONObject();
+		String wbid, ogid;
+		if (ColumnArray != null && ColumnArray.size() != 0) {
+			for (Object obj : ColumnArray) {
+				object = (JSONObject) obj;
+				wbid = object.getString("wbid");
+				ogid = ((JSONObject) object.get("_id")).getString("$oid");
+				rObject.put(wbid, ogid);
+			}
+		}
+		return rObject;
+	}
+
+	/**
+	 * 获取当前网站所有下级网站id，包含自身网站
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentGroupModel.java
+	 * 
+	 * @param wbid
+	 * @return
+	 *
+	 */
+	private String[] getWeb(String wbid) {
+		String[] value = null;
+		String temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + wbid, null, null);// 获取下级网站
+		if (temp != null && !temp.equals("")) {
+			value = temp.split(",");
+		}
+		return value;
+	}
+
+	/**
+	 * 栏目信息修改
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentGroupModel.java
+	 * 
+	 * @param ogid
+	 * @param groupinfo
+	 * @return
+	 *
+	 */
+	public int UpdateGroup(String ogid, JSONObject groupinfo) {
+		String wbid = "";
+		String name = "";
+		// int role = getRoleSign();
+		// if (role == 6) {
+		// return 4;
+		// }
+		int i = 99;
+		try {
+			// 根据栏目获取网站id
+			JSONObject object = findWeb(ogid);
+			if (object != null && object.size() != 0) {
+				wbid = object.getString("wbid");
+				name = object.getString("name");
+			}
+			if (!wbid.equals("")) {
+				wbid = ContentGroup.getRWbid(wbid);
+				i = Update(ogid, groupinfo, wbid, name);
+			}
 		} catch (Exception e) {
 			nlogger.logout(e);
 			i = 99;
 		}
 		return i;
+	}
+
+	/**
+	 * 修改栏目信息，0为不影响下级栏目，1为影响下级栏目
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentGroupModel.java
+	 * 
+	 * @param ogid
+	 * @param groupinfo
+	 * @param wbid
+	 * @return
+	 *
+	 */
+	private int Update(String ogid, JSONObject groupinfo, String wbid, String name) {
+		int i = 99;
+		String contant = "0", names = "";
+		db db = bind();
+		if (groupinfo != null && groupinfo.size() != 0) {
+			if (groupinfo.containsKey("names")) {
+				name = groupinfo.get("names").toString(); // 内容组名称长度最长不能超过20个字数
+				if (!check_name(names)) {
+					return 1;
+				}
+			}
+			if (groupinfo.containsKey("Contant")) { // contant:修改文章公开状态是否影响下级网站
+				contant = groupinfo.getString("Contant");
+				groupinfo.remove("Contant");
+			}
+			if (name.equals("")) {
+				contant = "0";
+			}
+			switch (contant) {
+			case "0":
+				i = db.eq("_id", new ObjectId(ogid)).data(groupinfo).update() != null ? 0 : 99;
+				break;
+			case "1": // 修改栏目信息，影响下级网站同名栏目
+				i = updateCid(wbid, name, groupinfo);
+				break;
+			}
+		}
+		return i;
+	}
+
+	/**
+	 * 修改主站，同时修改子站
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentGroupModel.java
+	 * 
+	 * @param wbid
+	 *            主站点id
+	 * @param name
+	 *            栏目名称
+	 * @param groupinfo
+	 *            待修改数据
+	 * @return
+	 *
+	 */
+	private int updateCid(String wbid, String name, JSONObject groupinfo) {
+		JSONObject info;
+		int i = 99;
+		db db = bind();
+		String temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + wbid, null, null);// 获取下级网站
+		if (!temp.equals("")) {
+			String[] value = temp.split(",");
+			db.or();
+			for (String string : value) {
+				db.eq("wbid", string);
+			}
+			if (name.equals("")) {
+				return 99;
+			}
+			JSONArray array = db.and().eq("name", name).select(); // 获取下级网站信息，同时包含主站
+			JSONObject tempobj = getChildData(array, groupinfo);
+			if (tempobj != null && tempobj.size() > 0) {
+				for (String string : value) {
+					info = JSONObject.toJSON(tempobj.getString(string));
+					if (info != null && info.size() > 0) {
+						i = db.eq("name", name).eq("wbid", string).data(info).update() != null ? 0 : 99;
+					}
+				}
+			}
+		}
+		return i;
+	}
+
+	/**
+	 * 获取下级栏目数据
+	 * 
+	 * @project GrapeContent
+	 * @package model
+	 * @file ContentGroupModel.java
+	 * 
+	 * @param array
+	 * @param objects
+	 * @return
+	 *
+	 */
+	@SuppressWarnings("unchecked")
+	private JSONObject getChildData(JSONArray array, JSONObject objects) {
+		JSONObject objtemp, object = new JSONObject();
+		String wbid;
+		if (array != null && array.size() != 0) {
+			for (Object obj : array) {
+				objtemp = (JSONObject) obj;
+				wbid = objtemp.getString("wbid");
+				objtemp.remove("_id");
+				objtemp.put("name", objects.getString("name"));
+				objtemp.put("contentType", objects.getString("contentType"));
+				objtemp.put("tempList", objects.getString("tempContent"));
+				objtemp.put("tempContent", objects.getString("tempContent"));
+				objtemp.put("isreview", objects.getString("isreview"));
+				objtemp.put("slevel", objects.getString("slevel"));
+				objtemp.put("sort", objects.getString("sort"));
+				objtemp.put("editCount", objects.getString("editCount"));
+				objtemp.put("timediff", Long.parseLong(objects.getString("timediff")));
+				object.put(wbid, RemoveNumberLong(objtemp));
+			}
+		}
+		return object;
+	}
+
+	@SuppressWarnings("unchecked")
+	private JSONObject RemoveNumberLong(JSONObject object) {
+		String temp;
+		String[] param = { "type", "sort", "isdelete", "isvisble", "clickCount", "u", "r", "d", "time", "timediff",
+				"editCount" };
+		if (object.containsKey("fatherid")) {
+			temp = object.getString("fatherid");
+			if (temp.contains("$numberLong")) {
+				temp = JSONObject.toJSON(temp).getString("$numberLong");
+			}
+			object.put("fatherid", temp);
+		}
+		if (param != null && param.length > 0) {
+			for (String value : param) {
+				if (object.containsKey(value)) {
+					temp = object.getString(value);
+					if (temp.contains("$numberLong")) {
+						temp = JSONObject.toJSON(temp).getString("$numberLong");
+					}
+					object.put(value, Long.parseLong(temp));
+				}
+			}
+		}
+		return object;
 	}
 
 	public int DeleteGroup(String ogid) {
@@ -199,7 +525,7 @@ public class ContentGroupModel {
 
 	// 查询文章，显示id，name，fatherid
 	public JSONObject findWeb(String ogid) {
-		return bind().eq("_id", new ObjectId(ogid)).field("_id,name,fatherid").find();
+		return bind().eq("_id", new ObjectId(ogid)).field("_id,name,fatherid,wbid").find();
 	}
 
 	public JSONArray select(String contentInfo) {
@@ -231,7 +557,7 @@ public class ContentGroupModel {
 		int rolePlv = getRoleSign();
 		db db = bind();
 		try {
-			if (wbid!=null && !wbid.equals("")) {
+			if (wbid != null && !wbid.equals("")) {
 				db.eq("wbid", wbid).mask("r,u,d");
 			}
 			if (CondObject != null && CondObject.size() != 0) {
@@ -568,7 +894,7 @@ public class ContentGroupModel {
 		if (ogid != null && !ogid.equals("")) {
 			while (temp != null) {
 				if (!tempID.equals("0")) {
-					temp = bind().eq("_id", tempID).field("_id,name,fatherid").find();
+					temp = bind().eq("_id", tempID).field("_id,wbid,name,fatherid").find();
 					if (temp != null) {
 						rList.add(temp);
 						if (temp.containsKey("fatherid")) {

@@ -8,6 +8,7 @@ import org.json.simple.JSONObject;
 
 import apps.appsProxy;
 import database.db;
+import interfaceApplication.ContentGroup;
 import nlogger.nlogger;
 public class WsCount {
 	private JSONObject object = new JSONObject();
@@ -53,6 +54,7 @@ public class WsCount {
 		String[] trees = null;
 		JSONObject nObj = new JSONObject();
 		//String[] Allweb = getCid(rootID);
+		rootID = ContentGroup.getRWbid(rootID);
 		long allCnt = getCount(rootID);
 		long argCnt = getAgreeCount(rootID);
 		long disArg = getDisagreeCount(rootID);

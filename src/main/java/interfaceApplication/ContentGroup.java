@@ -50,7 +50,7 @@ public class ContentGroup {
 		defcol.put("clickCount", 0); // 栏目更新周期内需更新的文章总数
 		defcol.put("editCount", 1); // 栏目更新周期内需更新的文章总数
 		defcol.put("connColumn", "0"); // 关联的栏目id，默认为0，不关联任何栏目
-		defcol.put("isreview", 0); // 该栏目下文章是否需要审核，0：不需要审核，1：需要审核
+		defcol.put("isreview", "0"); // 该栏目下文章是否需要审核，0：不需要审核，1：需要审核
 	}
 
 	// 新增
@@ -166,7 +166,7 @@ public class ContentGroup {
 	public String GroupPageBy(String wbid, int idx, int pageSize, String GroupInfo) {
 		if (userInfo != null && userInfo.size() != 0) {
 			wbid = userInfo.get("currentWeb").toString();
-		}
+		} 
 		return group.pages(getRWbid(wbid), idx, pageSize, GroupInfo);
 	}
 
@@ -391,23 +391,25 @@ public class ContentGroup {
 	public String getConnColumns(String ogid) {
 		String column = "", columnId = "", id;
 		JSONArray array = null;
-		JSONObject object = group.find(ogid);
-		if (object != null && object.size() != 0) {
-			if (object.containsKey("connColumn")) {
-				column = object.getString("connColumn");
-				if (!column.equals("0")) {
-					array = JSONArray.toJSONArray(column);
-					for (Object obj : array) {
-						object = (JSONObject) obj;
-						id = (object != null && object.size() != 0) ? object.getString("id") : "";
-						columnId += (!id.equals("") ? id : "") + ",";
+		if (ogid!=null && !ogid.equals("") ) {
+			JSONObject object = group.find(ogid);
+			if (object != null && object.size() != 0) {
+				if (object.containsKey("connColumn")) {
+					column = object.getString("connColumn");
+					if (!column.equals("0")) {
+						array = JSONArray.toJSONArray(column);
+						for (Object obj : array) {
+							object = (JSONObject) obj;
+							id = (object != null && object.size() != 0) ? object.getString("id") : "";
+							columnId += (!id.equals("") ? id : "") + ",";
+						}
 					}
 				}
 			}
-		}
-		if (!columnId.equals("")) {
-			columnId = StringHelper.fixString(columnId, ',');
-			ogid = ogid + "," + columnId;
+			if (!columnId.equals("")) {
+				columnId = StringHelper.fixString(columnId, ',');
+				ogid = ogid + "," + columnId;
+			}
 		}
 		return ogid;
 	}
@@ -465,6 +467,30 @@ public class ContentGroup {
 		return slevel;
 	}
 
+	/**
+	 * 获取当前栏目的下级所有栏目，包含自身栏目
+	 * @project	GrapeContent
+	 * @package interfaceApplication
+	 * @file ContentGroup.java
+	 * 
+	 * @param ogid
+	 * @return
+	 *
+	 */
+	public String getAllColumn(String ogid) {
+		db db = group.getdb();
+		JSONArray data = db.eq("fatherid", ogid).select();
+		JSONObject object;
+		String tmpWbid;
+		String rsString = ogid;
+		for (Object obj : data) {
+			object = (JSONObject) obj;
+			tmpWbid = ((JSONObject) object.get("_id")).get("$oid").toString();
+			rsString = rsString + "," + getAllColumn(tmpWbid);
+		}
+		return StringHelper.fixString(rsString, ',');
+	}
+	
 	/**
 	 * 批量设置内容组是否公开
 	 * 
