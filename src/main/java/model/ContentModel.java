@@ -121,6 +121,7 @@ public class ContentModel {
 			}
 			info = bind().data(info).insertOnce().toString();
 			ro = findOid(info);
+
 		} catch (Exception e) {
 			e.printStackTrace();
 			nlogger.logout("Content.insert: " + e);
@@ -251,7 +252,7 @@ public class ContentModel {
 	 */
 	private String AddHtmlPrefix(String Contents) {
 		Document doc = Jsoup.parse(Contents);
-		if (doc.empty() != null) {
+		if (!doc.toString().equals("")) {
 			String imgurl = "http://" + getFileHost(0);
 			Elements element = doc.select("img");
 			if (element.size() != 0) {
@@ -468,7 +469,7 @@ public class ContentModel {
 		long total = 0, totalSize = 0;
 		JSONArray array = new JSONArray();
 		db db = getPageDB(wbid, content);
-		array = db.dirty().desc("time").field("_id,mainName,time,wbid,ogid,image").page(idx, pageSize);
+		array = db.dirty().desc("time").field("_id,mainName,time,wbid,ogid,image,readCount,souce").page(idx, pageSize);
 		array = setTemp(array, connId);
 		totalSize = db.dirty().pageMax(pageSize);
 		total = db.count();
@@ -504,6 +505,13 @@ public class ContentModel {
 						db.eq("ogid", id);
 					}
 				}
+//				// 获取下级栏目
+//				String ogids = new ContentGroup().getAllColumn(ogid);
+//				String[] values = ogids.split(",");
+//				db.or();
+//				for (String id : values) {
+//					db.eq("ogid", id);
+//				}
 			}
 		}
 		return db;
@@ -818,7 +826,7 @@ public class ContentModel {
 	 *
 	 */
 	public String find(String id) {
-		String result = resultMessage(99);
+		String result = resultMessage(11);
 		// 获取当前数据
 		// JSONObject obj = db.asc("time").eq("slevel", 0).eq("_id", id).find();
 		db db = bind();
@@ -904,7 +912,7 @@ public class ContentModel {
 	 *
 	 */
 	private int isShow(JSONObject object) {
-		int code = 0;
+		int code = -1;
 		String currentId = "", wbid = "";
 		if (object != null && object.size() != 0) {
 			String ogid = object.getString("ogid");
@@ -915,12 +923,17 @@ public class ContentModel {
 					currentId = getCurrentId();
 					// 获取当前站点的全部下级站点
 					currentId = getCWbid(currentId);
+					wbid = ContentGroup.getRWbid(wbid);
 					if (!currentId.contains(wbid)) {
 						code = 1; // 无权查看
+					}else{
+						code = 0;
 					}
 				} else {
 					code = 2; // 请登录查看
 				}
+			} else {
+				code = 0;
 			}
 		}
 		return code;
@@ -1215,7 +1228,7 @@ public class ContentModel {
 	public String findbywbid(String wbid, int idx, int pageSize) {
 		long total = 0, totalSize = 0;
 		db db = bind().eq("wbid", wbid).eq("state", 2).desc("time").desc("_id");
-		JSONArray array = db.dirty().page(idx, pageSize);
+		JSONArray array = db.dirty().field("_id,mainName,time,wbid,ogid,tempid").page(idx, pageSize);
 		total = db.dirty().count();
 		totalSize = db.pageMax(pageSize);
 		return PageShow(join(getImgs(array)), total, totalSize, idx, pageSize);
@@ -1487,13 +1500,20 @@ public class ContentModel {
 
 	// 根据栏目id查询文章
 	public JSONArray findByGroupID(String wbid, String ogid) {
-		db db = bind();
 		JSONArray array = null;
+		String[] value = null;
 		try {
-			db.eq("wbid", wbid).eq("state", 2).eq("slevel", 0).eq("ogid", ogid).field("_id,mainName,ogid,time")
-					.desc("time").limit(20);
-			array = db.select();
-			array = dencode(array);
+			ogid = new ContentGroup().getAllColumn(ogid);
+			db db = bind();
+			if (ogid != null && !ogid.equals("")) {
+				value = ogid.split(",");
+				db.eq("wbid", wbid).eq("state", 2).eq("slevel", 0).or();
+				for (String string : value) {
+					db.eq("ogid", string);
+				}
+				array = db.field("_id,mainName,ogid,time,readCount,souce").desc("time").desc("sort").desc("_id").limit(50).select();
+				array = dencode(array);
+			}
 		} catch (Exception e) {
 			nlogger.logout("Content.findByGroupID: " + e);
 			array = null;
@@ -1503,10 +1523,21 @@ public class ContentModel {
 
 	public JSONArray findPicByGroupID(String wbid, String ogid) {
 		JSONArray array = null;
+		JSONObject object = null;
+		String img;
 		try {
 			array = bind().eq("wbid", wbid).eq("slevel", 0).eq("ogid", ogid).field("_id,mainName,ogid,time,image")
 					.desc("time").desc("sort").limit(20).select();
 			array = getImgs(dencode(array));
+			if (array!=null && array.size() >0) {
+				int l = array.size();
+				for (int i = 0; i < l; i++) {
+					object = (JSONObject)array.get(i);
+					img = object.getString("image");
+					object.put("image", (img!=null && !img.equals(""))?img.split(",")[0]:"");
+					array.set(i, object);
+				}
+			}
 		} catch (Exception e) {
 			nlogger.logout("Content.findPicByGroupID: " + e);
 			array = null;
@@ -1793,7 +1824,7 @@ public class ContentModel {
 			value = objcontent.getString(key);
 			if (!value.equals("")) {
 				Matcher matcher = ATTR_PATTERN.matcher(value.toLowerCase());
-				int code = matcher.find() ? 0 : value.contains("/file/upload") ? 1 : 2;
+				int code = matcher.find() ? 0 : value.contains("/File/upload") ? 1 : 2;
 				switch (code) {
 				case 0: // 文章内容为html带图片类型的内容处理
 					value = AddHtmlPrefix(value);
@@ -2233,6 +2264,9 @@ public class ContentModel {
 			break;
 		case 10:
 			message = "您暂时还没有审核权限";
+			break;
+		case 11:
+			message = "文章不存在";
 			break;
 		default:
 			message = "其他异常";

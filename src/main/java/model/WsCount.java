@@ -1,7 +1,5 @@
 package model;
 
-import java.util.ArrayList;
-import java.util.List;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -9,55 +7,116 @@ import org.json.simple.JSONObject;
 import apps.appsProxy;
 import database.db;
 import interfaceApplication.ContentGroup;
-import nlogger.nlogger;
+
 public class WsCount {
-	private JSONObject object = new JSONObject();
 	private ContentModel content = new ContentModel();
 	
-	@SuppressWarnings("unchecked")
-	public JSONObject getChannleCount(JSONObject robj, String wbID, String rootName, String fatherID){
-		JSONArray channelArray = JSONArray.toJSONArray( (String) appsProxy.proxyCall("/ContentGroup/getPrevColumn/s:" + wbID, null, null) );
-		
-		for(Object _obj : channelArray){
-			//json = (JSONObject)_obj;
-			
-		}
-		return robj;
+	public JSONObject getChannleCount(String wbID,long startUT,long endUT){
+		JSONArray channelArray = JSONArray.toJSONArray( (String) appsProxy.proxyCall("/GrapeContent/ContentGroup/getPrevColumn/s:" + wbID, null, null) );
+		JSONArray newTree = rootTree(channelArray,"_id","fatherid");
+		appendInfo2Tree(newTree,"_id","children",wbID,startUT,endUT);
+		return new JSONObject(wbID,newTree);
 	}
-	//线性jsonarray转树形jsonobjct
+	
 	@SuppressWarnings("unchecked")
-	private JSONObject line2tree(JSONArray array,String mid,String fid){
-		JSONObject json;
-		JSONObject rjson = new JSONObject();
+	private void appendInfo2Tree(JSONArray array,String mid,String childid,String wid,long startUT,long endUT){
+		JSONObject json,childJson;
+		JSONArray childArray;
+		String _id;
+		long allCnt,argCnt,disArg,chking;
 		for(Object _obj : array){
 			json = (JSONObject)_obj;
-			if( json.get(fid).toString().isEmpty() ){
-				rjson.put(json.get(mid).toString(), null);
-			}
-		}
-		JSONObject njson;
-		for(Object rootID : rjson.keySet()){
-			njson = new JSONObject();
-			for(Object _obj : array){
-				json = (JSONObject)_obj;
-				if( json.get(fid).toString().equals(rootID) ){//找到父ID为当前根目录的栏目
-					
+			if( json.containsKey(childid) && !json.get(childid).toString().isEmpty() ){//对象有子对象
+//				_id = json.get(mid).toString();
+				_id = ((JSONObject)json.get(mid)).getString("$oid");
+				childArray = (JSONArray)json.get(childid);	//获得子对象
+				appendInfo2Tree(childArray,mid,childid,wid,startUT,endUT);		//为子对象获得数据
+				//--为当前JSON获得数据
+				allCnt = getChannelAllCount(wid, _id,startUT,endUT);
+				argCnt = getChannelAgreeCount(wid, _id,startUT,endUT);
+				disArg = getChannelDisagreeCount(wid, _id,startUT,endUT);
+				chking = allCnt - argCnt - disArg;
+				//--遍历子对象1层，把其对应值与本JSON累加，更新数据
+				for(Object childObj : childArray){
+					childJson = (JSONObject)childObj;
+					allCnt += childJson.getLong("count");
+					argCnt += childJson.getLong("checked");
+					disArg += childJson.getLong("uncheck");
+					chking += childJson.getLong("checking");
 				}
+				json.put("count", allCnt);
+				json.put("checked", argCnt);
+				json.put("uncheck", disArg);
+				json.put("checking", chking);
 			}
 		}
-		return rjson;
+	}
+	
+	/**
+	 * @project	GrapeContent
+	 * @package model
+	 * @file WsCount.java
+	 * 
+	 * @param array	DATA数据源
+	 * @param mid	数据ID字段名称
+	 * @param fid	数据父ID字段名称
+	 * @return
+	 * 
+	 */
+	@SuppressWarnings("unchecked")
+	private JSONArray rootTree(JSONArray array,String mid,String fid){
+		JSONObject json;
+		JSONArray childArray;
+		JSONArray newArray = new JSONArray();
+		for(Object _obj : array){
+			json = (JSONObject)_obj;
+			if( json.get(fid).toString().equals("0") ){//是根数据
+				//rjson.put(json.get(mid).toString(), null);
+				childArray = line2tree(((JSONObject)json.get(mid)).getString("$oid"), array, mid, fid);//获得当前JSON对象的子对象组
+				//----------这里填充附加对象数据
+				json.put("children", childArray);
+				//------------------------------
+				newArray.add(json);
+			}
+		}
+		return newArray;
+	}
+	
+	//线性jsonarray转树形jsonobjct
+	@SuppressWarnings("unchecked")
+	private JSONArray line2tree(Object rootID, JSONArray array,String mid,String fid){
+		JSONObject json;
+		JSONArray newArray = new JSONArray();
+		JSONArray childArray;
+		//long allCnt,argCnt,disArg,chking;
+		for(Object _obj : array){
+			json = (JSONObject)_obj;
+			
+			if( json.get(fid).equals(rootID) ){	//当前数据的父对象是ROOT对象
+				childArray = line2tree(((JSONObject)json.get(mid)).getString("$oid"), array, mid, fid);//获得当前JSON对象的子对象组
+				//----------这里填充附加对象数据
+				json.put("children", childArray);
+				//------------------------------
+				newArray.add(json);				//为当前ROOT创建子数组
+			}
+		}
+		return newArray;
+	}
+	
+	public JSONObject getAllCount(JSONObject robj, String rootID, String rootName, String fatherID) {
+		return getAllCount(robj,rootID,rootName,fatherID,0,0);
 	}
 
 	@SuppressWarnings("unchecked")
-	public JSONObject getAllCount(JSONObject robj, String rootID, String rootName, String fatherID) {
+	public JSONObject getAllCount(JSONObject robj, String rootID, String rootName, String fatherID,long startUT,long endUT) {
 		// appsProxy.
 		String[] trees = null;
 		JSONObject nObj = new JSONObject();
 		//String[] Allweb = getCid(rootID);
 		rootID = ContentGroup.getRWbid(rootID);
-		long allCnt = getCount(rootID);
-		long argCnt = getAgreeCount(rootID);
-		long disArg = getDisagreeCount(rootID);
+		long allCnt = getCount(rootID,startUT,endUT);
+		long argCnt = getAgreeCount(rootID,startUT,endUT);
+		long disArg = getDisagreeCount(rootID,startUT,endUT);
 		long chking = allCnt - argCnt - disArg;
 		nObj.put("id", rootID);
 		nObj.put("fatherid", fatherID);
@@ -74,7 +133,7 @@ public class WsCount {
 			int l = trees.length;
 			for (int i = 0; i < l; i++) {
 				// newJSON.put(trees[i], webInfos.getString(trees[i]) );//填充网站姓名
-				getAllCount(newJSON, trees[i], webInfos.getString(trees[i]), rootID);
+				getAllCount(newJSON, trees[i], webInfos.getString(trees[i]), rootID,startUT,endUT);
 			}
 		}
 		/**/
@@ -179,28 +238,112 @@ public class WsCount {
         sortJson(array, i + 1, hight, key); // 对高子表进行递归排序
 	}
 	*/
+    private long getChannelAllCount(String wid,String cid){
+    	
+    	return 0;
+    }
+    private long getChannelAllCount(String wid,String cid,long startUT,long endUT){
+    	long count = 0;
+		if (wid != null) {
+			db db = content.bind();
+			if( startUT > 0 ){
+				db.and().gte("time", startUT);
+			}
+			if( endUT > 0 ){
+				db.and().lte("time", endUT);
+			}
+			count = db.eq("wbid", wid).eq("ogid", cid).count();
+		}
+		return count;
+    }
+    private long getChannelAgreeCount(String wid) {
+		return 0;
+	}
+    private long getChannelAgreeCount(String wid,String cid,long startUT,long endUT){
+    	long count = 0;
+		if (wid != null) {
+			db db = content.bind();
+			if( startUT > 0 ){
+				db.and().gte("time", startUT);
+			}
+			if( endUT > 0 ){
+				db.and().lte("time", endUT);
+			}
+			count = db.and().eq("wbid", wid).eq("ogid", cid).eq("state", 2).count();
+		}
+		return count;
+    }
+    private long getChannelDisagreeCount(String wid) {
+		return 0;
+	}
+    private long getChannelDisagreeCount(String wid,String cid,long startUT,long endUT){
+    	long count = 0;
+		if (wid != null) {
+			db db = content.bind();
+			if( startUT > 0 ){
+				db.and().gte("time", startUT);
+			}
+			if( endUT > 0 ){
+				db.and().lte("time", endUT);
+			}
+			count = db.and().eq("wbid", wid).eq("ogid", cid).eq("state", 1).count();
+		}
+		return count;
+    }
+    
+    
+    
 	private long getCount(String wid) {
+		return getCount(wid,0,0);
+	}
+	
+	private long getCount(String wid,long startUT,long endUT) {
 		long count = 0;
 		if (wid != null) {
 			db db = content.bind();
+			if( startUT > 0 ){
+				db.and().gte("time", startUT);
+			}
+			if( endUT > 0 ){
+				db.and().lte("time", endUT);
+			}
 			count = db.eq("wbid", wid).count();
 		}
 		return count;
 	}
 
 	private long getAgreeCount(String wid) {
+		return getAgreeCount(wid,0,0);
+	}
+	private long getAgreeCount(String wid,long startUT,long endUT) {
 		long count = 0;
 		if (wid != null) {
 			db db = content.bind();
+			if( startUT > 0 ){
+				db.and().gte("time", startUT);
+			}
+			if( endUT > 0 ){
+				db.and().lte("time", endUT);
+			}
 			count = db.and().eq("wbid", wid).eq("state", 2).count();
 		}
 		return count;
 	}
 
 	private long getDisagreeCount(String wid) {
+		return getDisagreeCount(wid,0,0);
+	}
+	
+	private long getDisagreeCount(String wid,long startUT,long endUT) {
 		long count = 0;
 		if (wid != null) {
 			db db = content.bind();
+			if( startUT > 0 ){
+				db.and().gte("time", startUT);
+			}
+			if( endUT > 0 ){
+				db.and().lte("time", endUT);
+			}
 			count = db.and().eq("wbid", wid).eq("state", 1).count();
 		}
 		return count;

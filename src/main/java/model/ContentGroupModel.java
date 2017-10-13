@@ -3,12 +3,14 @@ package model;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.bson.types.ObjectId;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -201,7 +203,6 @@ public class ContentGroupModel {
 		String[] value;
 		if (groupinfo != null && groupinfo.size() != 0) {
 			if (!wbid.equals("")) {
-				wbid = ContentGroup.getRWbid(wbid);
 				value = getWeb(wbid);
 				result = AddAll(groupinfo, value);
 			}
@@ -237,7 +238,7 @@ public class ContentGroupModel {
 					if (tempobj != null && tempobj.size() != 0) {
 						for (String string : wbid) {
 							groupinfo.put("wbid", string);
-							groupinfo.put("ogid", tempobj.getString(string));
+							groupinfo.put("fatherid", tempobj.getString(string));
 							result = Add(groupinfo);
 						}
 					}
@@ -285,6 +286,7 @@ public class ContentGroupModel {
 	 */
 	private String[] getWeb(String wbid) {
 		String[] value = null;
+		wbid = ContentGroup.getRWbid(wbid);
 		String temp = (String) appsProxy.proxyCall("/GrapeWebInfo/WebInfo/getWebTree/" + wbid, null, null);// 获取下级网站
 		if (temp != null && !temp.equals("")) {
 			value = temp.split(",");
@@ -348,12 +350,12 @@ public class ContentGroupModel {
 		String contant = "0", names = "";
 		db db = bind();
 		if (groupinfo != null && groupinfo.size() != 0) {
-			if (groupinfo.containsKey("names")) {
-				name = groupinfo.get("names").toString(); // 内容组名称长度最长不能超过20个字数
-				if (!check_name(names)) {
-					return 1;
-				}
-			}
+//			if (groupinfo.containsKey("name")) {
+//				name = groupinfo.get("name").toString(); // 内容组名称长度最长不能超过20个字数
+//				if (!check_name(names)) {
+//					return 1;
+//				}
+//			}
 			if (groupinfo.containsKey("Contant")) { // contant:修改文章公开状态是否影响下级网站
 				contant = groupinfo.getString("Contant");
 				groupinfo.remove("Contant");
@@ -407,9 +409,11 @@ public class ContentGroupModel {
 			JSONObject tempobj = getChildData(array, groupinfo);
 			if (tempobj != null && tempobj.size() > 0) {
 				for (String string : value) {
-					info = JSONObject.toJSON(tempobj.getString(string));
-					if (info != null && info.size() > 0) {
-						i = db.eq("name", name).eq("wbid", string).data(info).update() != null ? 0 : 99;
+					if (tempobj.containsKey(string)) {
+						info = JSONObject.toJSON(tempobj.getString(string));
+						if (info != null && info.size() > 0) {
+							i = db.eq("name", name).eq("wbid", string).data(info).update() != null ? 0 : 99;
+						}
 					}
 				}
 			}
@@ -457,7 +461,7 @@ public class ContentGroupModel {
 	private JSONObject RemoveNumberLong(JSONObject object) {
 		String temp;
 		String[] param = { "type", "sort", "isdelete", "isvisble", "clickCount", "u", "r", "d", "time", "timediff",
-				"editCount" };
+				"editCount","lastTime" };
 		if (object.containsKey("fatherid")) {
 			temp = object.getString("fatherid");
 			if (temp.contains("$numberLong")) {
@@ -666,10 +670,10 @@ public class ContentGroupModel {
 	}
 
 	public int delete(String[] arr) {
-		int role = getRoleSign();
-		if (role == 6) {
-			return 4;
-		}
+//		int role = getRoleSign();
+//		if (role == 6) {
+//			return 4;
+//		}
 		int ir = 99;
 		try {
 			bind().or();
@@ -886,8 +890,46 @@ public class ContentGroupModel {
 		return resultMessage(code, "设置栏目管理员成功");
 	}
 
+//	@SuppressWarnings("unchecked")
+//	public JSONArray getPrev(String ogid) {
+//		JSONArray rList = new JSONArray();
+//		JSONObject temp = new JSONObject();
+//		String tempID = ogid;
+//		if (ogid != null && !ogid.equals("")) {
+//			while (temp != null) {
+//				if (!tempID.equals("0")) {
+//					temp = bind().eq("_id", tempID).field("_id,wbid,name,fatherid").find();
+//					if (temp != null) {
+//						rList.add(temp);
+//						if (temp.containsKey("fatherid")) {
+//							tempID = temp.getString("fatherid");
+//							if (tempID.contains("$numberLong")) {
+//								tempID = JSONObject.toJSON(tempID).getString("$numberLong");
+//								if (tempID.equals("0")) {
+//									temp = null;
+//								}
+//							}
+//						} else {
+//							temp = null;
+//						}
+//					}
+//				} else {
+//					temp = null;
+//				}
+//			}
+//		}
+//		for (int i = 0; i < rList.size(); i++) {
+//			temp = (JSONObject) rList.get(i);
+//			tempID = ((JSONObject) temp.get("_id")).getString("$oid");
+//			temp.put("_id", tempID);
+//			rList.set(i, temp);
+//		}
+//		return rList;
+//	}
+
 	@SuppressWarnings("unchecked")
 	public JSONArray getPrev(String ogid) {
+		List<JSONObject> list = new ArrayList<>();
 		JSONArray rList = new JSONArray();
 		JSONObject temp = new JSONObject();
 		String tempID = ogid;
@@ -896,14 +938,15 @@ public class ContentGroupModel {
 				if (!tempID.equals("0")) {
 					temp = bind().eq("_id", tempID).field("_id,wbid,name,fatherid").find();
 					if (temp != null) {
-						rList.add(temp);
+						list.add(temp);
+//						rList.add(temp);
 						if (temp.containsKey("fatherid")) {
 							tempID = temp.getString("fatherid");
 							if (tempID.contains("$numberLong")) {
 								tempID = JSONObject.toJSON(tempID).getString("$numberLong");
-								if (tempID.equals("0")) {
-									temp = null;
-								}
+							}
+							if (tempID.equals("0")) {
+								temp = null;
 							}
 						} else {
 							temp = null;
@@ -914,6 +957,11 @@ public class ContentGroupModel {
 				}
 			}
 		}
+		Collections.reverse(list);
+		for (Object object : list) {
+			JSONObject object2 = (JSONObject)object;
+			rList.add(object2);
+		}
 		for (int i = 0; i < rList.size(); i++) {
 			temp = (JSONObject) rList.get(i);
 			tempID = ((JSONObject) temp.get("_id")).getString("$oid");
@@ -922,7 +970,7 @@ public class ContentGroupModel {
 		}
 		return rList;
 	}
-
+	
 	/**
 	 * 根据角色plv，获取角色级别
 	 * 

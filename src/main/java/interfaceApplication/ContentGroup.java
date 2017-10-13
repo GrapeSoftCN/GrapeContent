@@ -51,6 +51,7 @@ public class ContentGroup {
 		defcol.put("editCount", 1); // 栏目更新周期内需更新的文章总数
 		defcol.put("connColumn", "0"); // 关联的栏目id，默认为0，不关联任何栏目
 		defcol.put("isreview", "0"); // 该栏目下文章是否需要审核，0：不需要审核，1：需要审核
+		defcol.put("ispush", "0"); // 该栏目是否允许接受推送，0：允许接受推送，1：不允许接受推送
 	}
 
 	// 新增
@@ -145,11 +146,11 @@ public class ContentGroup {
 		CacheHelper cacheHelper = new CacheHelper();
 		String value = cacheHelper.get(key);
 		if (value == null) {
-			obj = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/"+wbid, null, null);
-			if( obj != null ){
+			obj = appsProxy.proxyCall("/GrapeWebInfo/WebInfo/VID2RID/" + wbid, null, null);
+			if (obj != null) {
 				value = obj.toString();
 				if (!value.equals("")) {
-					cacheHelper.setget(key, value,60* 1000);
+					cacheHelper.setget(key, value, 60 * 1000);
 				}
 			}
 		}
@@ -166,7 +167,7 @@ public class ContentGroup {
 	public String GroupPageBy(String wbid, int idx, int pageSize, String GroupInfo) {
 		if (userInfo != null && userInfo.size() != 0) {
 			wbid = userInfo.get("currentWeb").toString();
-		} 
+		}
 		return group.pages(getRWbid(wbid), idx, pageSize, GroupInfo);
 	}
 
@@ -391,7 +392,7 @@ public class ContentGroup {
 	public String getConnColumns(String ogid) {
 		String column = "", columnId = "", id;
 		JSONArray array = null;
-		if (ogid!=null && !ogid.equals("") ) {
+		if (ogid != null && !ogid.equals("")) {
 			JSONObject object = group.find(ogid);
 			if (object != null && object.size() != 0) {
 				if (object.containsKey("connColumn")) {
@@ -469,7 +470,8 @@ public class ContentGroup {
 
 	/**
 	 * 获取当前栏目的下级所有栏目，包含自身栏目
-	 * @project	GrapeContent
+	 * 
+	 * @project GrapeContent
 	 * @package interfaceApplication
 	 * @file ContentGroup.java
 	 * 
@@ -490,7 +492,7 @@ public class ContentGroup {
 		}
 		return StringHelper.fixString(rsString, ',');
 	}
-	
+
 	/**
 	 * 批量设置内容组是否公开
 	 * 
@@ -526,5 +528,50 @@ public class ContentGroup {
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * 设置栏目允许接受推送["ispush":"0"]
+	 * 
+	 * @project GrapeContent
+	 * @package interfaceApplication
+	 * @file ContentGroup.java
+	 * 
+	 * @param ogid
+	 *
+	 */
+	public String SetPushState(String ogid,String data) {
+		long code = 0;
+		String[] value = null;
+		db db = group.getdb();
+		if (JSONObject.toJSON(data) != null) {
+			if (ogid != null && !ogid.equals("")) {
+				value = ogid.split(",");
+			}
+			if (value != null) {
+				db.or();
+				for (String string : value) {
+					db.eq("_id", string);
+				}
+				code = db.data(data).updateAll();
+			}
+		}
+		return group.resultMessage(code > 0 ? 0 : 99, "设置成功");
+	}
+	
+	/**
+	 * 获取某网站下的所有允许被推送文章的栏目信息
+	 * @project	GrapeContent
+	 * @package interfaceApplication
+	 * @file ContentGroup.java
+	 * 
+	 * @param wbid
+	 * @return
+	 *
+	 */
+	public String getPushArticle(String wbid) {
+		db db = group.getdb();
+		JSONArray array = db.eq("wbid", wbid).eq("ispush", "0").select();
+		return group.resultMessage(array);
 	}
 }
